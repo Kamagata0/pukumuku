@@ -549,17 +549,22 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
-  // 初期状態: 純くんは左画面外（X = -2.8）に待機、手元の箱は非表示、地面の中央に木箱を設置
+  // 初期状態: 純くんが画面左外（X = -2.8）から中央（X = 0）へ歩いて登場する！
+  gameState.isOpening = true;
+  gameState.openingStage = 1; // 1: 歩行登場中
   gameState.playerX = -2.8;
-  gameState.targetX = -2.8;
+  gameState.targetX = 0;
   junKunGroup.position.x = -2.8;
+  junKunGroup.rotation.y = 0.2; // 右向き歩行
+
+  // 手元の箱は持たず、地面の中央に木箱を設置
   if (junBreadBox) {
     junBreadBox.visible = false;
   }
   spawnGroundBasket(0, 0.045, 0.15);
 
-  if (animations['Carry_Idle']) {
-    playAnimation('Carry_Idle', 0.2);
+  if (animations['Carry_Run']) {
+    playAnimation('Carry_Run', 0.2);
   }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
@@ -802,8 +807,8 @@ function animate() {
 
   if (mixer) mixer.update(delta);
 
-  // ゲーム中、または終了時の中央歩行シークエンス中
-  if (gameState.isRunning || gameState.isEnding) {
+  // ゲーム中、オープニング歩行中、または終了時の中央歩行シークエンス中
+  if (gameState.isRunning || gameState.isEnding || gameState.isOpening) {
     if (gameState.isRunning) {
       // 制限時間カウントダウン
       gameState.timeLeft -= delta;
@@ -828,10 +833,14 @@ function animate() {
     // 純くんの移動（ターゲットXへスムーズに補間）
     const prevX = gameState.playerX;
     const diff = gameState.targetX - gameState.playerX;
-    const moveSpd = gameState.isEnding ? 4.5 : GAME_CONFIG.moveSpeed;
+    const moveSpd = (gameState.isEnding || gameState.isOpening) ? 3.6 : GAME_CONFIG.moveSpeed;
     gameState.playerX += diff * Math.min(1.0, moveSpd * delta);
-    const limitX = getSafeMoveLimit();
-    gameState.playerX = Math.max(-limitX, Math.min(limitX, gameState.playerX));
+
+    // ゲーム中のみ画面端でクランプ（オープニングの画面外からの歩行を阻害しない！）
+    if (gameState.isRunning) {
+      const limitX = getSafeMoveLimit();
+      gameState.playerX = Math.max(-limitX, Math.min(limitX, gameState.playerX));
+    }
     const movedDist = Math.abs(gameState.playerX - prevX);
 
     // 移動フラグ判定
@@ -849,45 +858,21 @@ function animate() {
     if (junKunGroup) {
       junKunGroup.position.x = gameState.playerX;
 
-      // オープニング演出中（左から中央へ歩いて登場）
+      // オープニング演出中（左外から中央へ歩いて登場）
       if (gameState.isOpening) {
         if (gameState.openingStage === 1) {
           playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
-          junKunGroup.rotation.y = (diff > 0) ? 0.2 : 0;
+          junKunGroup.rotation.y = (diff > 0) ? 0.25 : 0;
           if (Math.abs(diff) <= 0.04) {
-            // 中央に到着！正面を向いて手を振る！
+            // 中央に到着！正面を向いてカメラに手を振る！
             gameState.openingStage = 2;
             gameState.playerX = 0;
             gameState.targetX = 0;
             junKunGroup.position.x = 0;
             junKunGroup.rotation.y = 0;
             if (animations['Wave']) {
-              playAnimation('Wave', 0.2, false);
+              playAnimation('Wave', 0.2, true);
             }
-
-            // 1.3秒手を振った後、地面の籠を拾い上げてゲーム開始！
-            setTimeout(() => {
-              if (groundBasket) {
-                scene.remove(groundBasket);
-                groundBasket = null;
-              }
-              if (junBreadBox) {
-                junBreadBox.visible = true;
-              }
-              if (animations['Carry_Idle']) {
-                playAnimation('Carry_Idle', 0.2);
-              }
-              if (headerUI) {
-                headerUI.style.opacity = '1';
-              }
-              sounds.playOvenDing();
-              showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
-
-              setTimeout(() => {
-                gameState.isOpening = false;
-                gameState.isRunning = true;
-              }, 400);
-            }, 1300);
           }
         }
       }
@@ -1018,13 +1003,36 @@ animate();
 // --- 10. ゲーム開始 & 終了処理 ---
 function startGame() {
   sounds.init();
+  sounds.playOvenDing();
+
+  startScreen.classList.remove('active');
+  resultScreen.classList.remove('active');
+
+  // 手を振るのをやめ、足元の木箱を「よっこいしょ」と拾い上げる！
+  if (groundBasket) {
+    scene.remove(groundBasket);
+    groundBasket = null;
+  }
+  if (junBreadBox) {
+    junBreadBox.visible = true;
+  }
+  if (animations['Carry_Idle']) {
+    playAnimation('Carry_Idle', 0.2);
+  }
+
+  // スコア・タイマーUIをパッとフェードイン表示！
+  if (headerUI) {
+    headerUI.style.opacity = '1';
+  }
+
+  showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
+
   gameState.score = 0;
   gameState.timeLeft = GAME_CONFIG.duration;
-  gameState.isRunning = false;
-  gameState.isOpening = true;
-  gameState.openingStage = 1; // 1: 左から歩いて登場
+  gameState.isOpening = false;
   gameState.isEnding = false;
   gameState.isBowing = false;
+  gameState.isRunning = true;
   gameState.combo = 0;
   gameState.isFever = false;
   gameState.breadCount = {
@@ -1037,25 +1045,12 @@ function startGame() {
     bread_gold: 0,
     bread_burnt: 0
   };
-
-  // 左画面外から登場スタート！
-  gameState.playerX = -2.8;
+  gameState.playerX = 0;
   gameState.targetX = 0;
+
   if (junKunGroup) {
-    junKunGroup.position.x = -2.8;
+    junKunGroup.position.x = 0;
     junKunGroup.rotation.y = 0;
-  }
-
-  // 手元の木箱はまだ持たない
-  if (junBreadBox) {
-    junBreadBox.visible = false;
-  }
-  // 地面中央に置かれた木箱
-  spawnGroundBasket(0, 0.045, 0.15);
-
-  // ヘッダーUI（点数）は最初は非表示！
-  if (headerUI) {
-    headerUI.style.opacity = '0';
   }
 
   // 残っているパンをクリア
@@ -1068,9 +1063,6 @@ function startGame() {
 
   updateScoreUI();
   updateTimerUI();
-
-  startScreen.classList.remove('active');
-  resultScreen.classList.remove('active');
 }
 
 function endGame() {
