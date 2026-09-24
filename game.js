@@ -436,7 +436,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_13';
+const CACHE_BUST = 'v=20260925_2';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -895,22 +895,26 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
-  // 初期状態: 純くんは左画面外（X = -2.8）で静かにスタンバイ！スタートボタンが押されてから歩き出します
-  gameState.isOpening = false;
-  gameState.openingStage = 0;
-  gameState.playerX = -2.8;
-  gameState.targetX = -2.8;
-  junKunGroup.position.x = -2.8;
-  junKunGroup.rotation.y = 0.25; // 右向きスタンバイ
+  // 初期状態: まだスタートが押されていない場合のみ初期スタンバイ位置に設定
+  if (!gameState.isOpening && !gameState.isRunning) {
+    const startX = -Math.max(1.8, getSafeMoveLimit() + 0.5);
+    gameState.playerX = startX;
+    gameState.targetX = startX;
+    junKunGroup.position.x = startX;
+    junKunGroup.rotation.y = 0.25; // 右向きスタンバイ
 
-  // 手元の箱は持たず、地面の中央に木箱を設置
-  if (junBreadBox) {
-    junBreadBox.visible = false;
-  }
-  spawnGroundBasket(0, 0.045, 0.15);
+    if (junBreadBox) {
+      junBreadBox.visible = false;
+    }
+    spawnGroundBasket(0, 0.045, 0.15);
 
-  if (animations['Carry_Idle']) {
-    playAnimation('Carry_Idle', 0.2);
+    if (animations['Carry_Idle']) {
+      playAnimation('Carry_Idle', 0.2);
+    }
+  } else if (gameState.isOpening && gameState.openingStage === 1) {
+    if (animations['Carry_Run']) {
+      playAnimation('Carry_Run', 0.12);
+    }
   }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
@@ -983,6 +987,7 @@ function getSafeMoveLimit() {
 }
 
 function setTargetFromClientX(clientX) {
+  if (!gameState.isRunning) return; // オープニング演出中やエンディング中はプレイヤー操作を遮断
   const rect = container.getBoundingClientRect();
   const normalizedX = ((clientX - rect.left) / rect.width) * 2 - 1; // -1 ~ 1
   const limitX = getSafeMoveLimit();
@@ -1011,6 +1016,7 @@ window.addEventListener('keydown', (e) => keys[e.key] = true);
 window.addEventListener('keyup', (e) => keys[e.key] = false);
 
 function handleKeyboardInput(delta) {
+  if (!gameState.isRunning) return;
   const speed = 6.5;
   const limitX = getSafeMoveLimit();
   isKeyMoving = false;
@@ -1177,99 +1183,72 @@ function animate() {
       handleKeyboardInput(delta);
     }
 
-    // 純くんの移動（ターゲットXへスムーズに補間）
+    // --- 純くんの移動制御 ---
     const prevX = gameState.playerX;
-    const diff = gameState.targetX - gameState.playerX;
-    const moveSpd = gameState.isOpening ? 1.7 : (gameState.isEnding ? 2.4 : GAME_CONFIG.moveSpeed);
-    gameState.playerX += diff * Math.min(1.0, moveSpd * delta);
 
-    // ゲーム中のみ画面端でクランプ（オープニングの画面外からの歩行を阻害しない！）
-    if (gameState.isRunning) {
-      const limitX = getSafeMoveLimit();
-      gameState.playerX = Math.max(-limitX, Math.min(limitX, gameState.playerX));
-    }
-    const movedDist = Math.abs(gameState.playerX - prevX);
+    if (gameState.isOpening) {
+      if (gameState.openingStage === 1) {
+        // オープニング：左外から中央（X=0）へ一定速度（秒速2.2m）で確実にトコトコ前進！
+        const walkSpeed = 2.2;
+        gameState.playerX += walkSpeed * delta;
+        if (junKunGroup) {
+          junKunGroup.position.x = gameState.playerX;
+          junKunGroup.rotation.y = 0.25; // 右向き
+        }
+        playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
 
-    // 移動フラグ判定
-    const isActivelyMoving = (gameState.isRunning && (isKeyMoving || (isPointerDown && Math.abs(diff) > 0.04))) ||
-                             (gameState.isOpening && gameState.openingStage === 1) ||
-                             (gameState.isEnding && Math.abs(diff) > 0.03) ||
-                             movedDist > 0.004;
-
-    if (isActivelyMoving) {
-      runHoldTimer = 0.2;
-    } else if (runHoldTimer > 0) {
-      runHoldTimer -= delta;
-    }
-
-    if (junKunGroup) {
-      junKunGroup.position.x = gameState.playerX;
-
-      // オープニング演出中（左外から中央へ歩いて登場）
-      if (gameState.isOpening) {
-        if (gameState.openingStage === 1) {
-          playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
-          junKunGroup.rotation.y = (diff > 0) ? 0.25 : 0;
-          if (Math.abs(diff) <= 0.04) {
-            // 中央に到着！正面を向いてカメラに手を振る！
-            gameState.openingStage = 2;
-            gameState.playerX = 0;
-            gameState.targetX = 0;
-            junKunGroup.position.x = 0;
-            junKunGroup.rotation.y = 0;
-            sounds.playWave();
-            if (animations['Wave']) {
-              playAnimation('Wave', 0.2, false);
-            }
-
-            // 1.2秒手を振った後、地面の籠を拾い上げてゲームスタート！
-            setTimeout(() => {
-              if (groundBasket) {
-                scene.remove(groundBasket);
-                groundBasket = null;
-              }
-              if (junBreadBox) {
-                junBreadBox.visible = true;
-              }
-              if (animations['Carry_Idle']) {
-                playAnimation('Carry_Idle', 0.2);
-              }
-              if (headerUI) {
-                headerUI.style.opacity = '1';
-              }
-              sounds.playOvenDing();
-              sounds.startBGM();
-              showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
-
-              setTimeout(() => {
-                gameState.isOpening = false;
-                gameState.isRunning = true;
-              }, 400);
-            }, 1200);
-          }
+        // 中央（X >= 0）に到着したら手を振る演出へ！
+        if (gameState.playerX >= 0) {
+          triggerOpeningWave();
         }
       }
-      // 終了演出中（中央へ歩いて到着後にお辞儀）
-      else if (gameState.isEnding) {
-        if (Math.abs(diff) <= 0.04 && !gameState.isBowing) {
-          gameState.isBowing = true;
-          gameState.playerX = 0;
-          gameState.targetX = 0;
+    } else if (gameState.isEnding) {
+      // エンディング：中央（0）に向かって前進後にお辞儀
+      const diff = 0 - gameState.playerX;
+      const walkSpeed = 2.2;
+      const step = walkSpeed * delta;
+      if (Math.abs(diff) <= step) {
+        gameState.playerX = 0;
+        if (junKunGroup) {
           junKunGroup.position.x = 0;
           junKunGroup.rotation.y = 0;
+        }
+        if (!gameState.isBowing) {
+          gameState.isBowing = true;
           sounds.playBow();
           if (animations['Bow']) {
             playAnimation('Bow', 0.25, false);
           } else {
             playAnimation('Carry_Idle', 0.2);
           }
-        } else if (!gameState.isBowing) {
+        }
+      } else {
+        gameState.playerX += Math.sign(diff) * step;
+        if (junKunGroup) {
+          junKunGroup.position.x = gameState.playerX;
+          junKunGroup.rotation.y = diff > 0 ? 0.2 : -0.2;
+        }
+        if (!gameState.isBowing) {
           playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
-          junKunGroup.rotation.y = (diff > 0) ? 0.2 : (diff < 0 ? -0.2 : 0);
         }
       }
-      // ゲームプレイ中
-      else {
+    } else if (gameState.isRunning) {
+      // 通常ゲームプレイ中の移動
+      const diff = gameState.targetX - gameState.playerX;
+      gameState.playerX += diff * Math.min(1.0, GAME_CONFIG.moveSpeed * delta);
+      const limitX = getSafeMoveLimit();
+      gameState.playerX = Math.max(-limitX, Math.min(limitX, gameState.playerX));
+
+      if (junKunGroup) {
+        junKunGroup.position.x = gameState.playerX;
+
+        const isActivelyMoving = isKeyMoving || (isPointerDown && Math.abs(diff) > 0.04) || Math.abs(gameState.playerX - prevX) > 0.004;
+        if (isActivelyMoving) {
+          runHoldTimer = 0.2;
+        } else if (runHoldTimer > 0) {
+          runHoldTimer -= delta;
+        }
+
         if (runHoldTimer > 0) {
           playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
           const targetTilt = diff > 0.04 ? 0.15 : (diff < -0.04 ? -0.15 : 0);
@@ -1278,10 +1257,8 @@ function animate() {
           playAnimation(animations['Carry_Idle'] ? 'Carry_Idle' : 'Idle', 0.2);
           junKunGroup.rotation.y += (0 - junKunGroup.rotation.y) * 10 * delta;
         }
-      }
 
-      // 木箱の中のパンを純くんの移動に追従＆可愛く揺らす（ゲーム中のみ）
-      if (gameState.isRunning) {
+        // 木箱の中のパンを純くんの移動に追従＆可愛く揺らす（ゲーム中のみ）
         gameState.towerBreads.forEach((bread, idx) => {
           bread.position.x = gameState.playerX;
           bread.position.y = 0.40 + idx * 0.07;
@@ -1376,6 +1353,52 @@ function animate() {
 
 animate();
 
+// --- オープニング手を振る演出 ＆ ゲーム開始への接続 ---
+function triggerOpeningWave() {
+  if (!gameState.isOpening || gameState.openingStage !== 1) return;
+  if (gameState.openingSafetyTimer) {
+    clearTimeout(gameState.openingSafetyTimer);
+    gameState.openingSafetyTimer = null;
+  }
+
+  gameState.openingStage = 2;
+  gameState.playerX = 0;
+  gameState.targetX = 0;
+  if (junKunGroup) {
+    junKunGroup.position.x = 0;
+    junKunGroup.rotation.y = 0;
+  }
+  sounds.playWave();
+  if (animations['Wave']) {
+    playAnimation('Wave', 0.2, false);
+  }
+
+  // 1.2秒手を振った後、地面の籠を拾い上げてゲームスタート！
+  setTimeout(() => {
+    if (groundBasket) {
+      scene.remove(groundBasket);
+      groundBasket = null;
+    }
+    if (junBreadBox) {
+      junBreadBox.visible = true;
+    }
+    if (animations['Carry_Idle']) {
+      playAnimation('Carry_Idle', 0.2);
+    }
+    if (headerUI) {
+      headerUI.style.opacity = '1';
+    }
+    sounds.playOvenDing();
+    sounds.startBGM();
+    showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
+
+    setTimeout(() => {
+      gameState.isOpening = false;
+      gameState.isRunning = true;
+    }, 400);
+  }, 1200);
+}
+
 // --- 10. ゲーム開始 & 終了処理 ---
 function startGame() {
   sounds.init();
@@ -1414,16 +1437,17 @@ function startGame() {
   updateTimerUI();
 
   // ★スタートボタンが押された瞬間、純くんが画面左外から中央へ歩き出す！
+  const startX = -Math.max(1.8, getSafeMoveLimit() + 0.5);
   gameState.isRunning = false;
   gameState.isEnding = false;
   gameState.isBowing = false;
   gameState.isOpening = true;
   gameState.openingStage = 1; // 1: 左外から歩行中
 
-  gameState.playerX = -2.8;
+  gameState.playerX = startX;
   gameState.targetX = 0;
   if (junKunGroup) {
-    junKunGroup.position.x = -2.8;
+    junKunGroup.position.x = startX;
     junKunGroup.rotation.y = 0.25; // 右向き
   }
 
@@ -1436,6 +1460,16 @@ function startGame() {
   if (animations['Carry_Run']) {
     playAnimation('Carry_Run', 0.12);
   }
+
+  // ★フェイルセーフ（2.0秒以内に中央到着が判定されなくても確実にゲームが開始される！）
+  if (gameState.openingSafetyTimer) {
+    clearTimeout(gameState.openingSafetyTimer);
+  }
+  gameState.openingSafetyTimer = setTimeout(() => {
+    if (gameState.isOpening && gameState.openingStage === 1) {
+      triggerOpeningWave();
+    }
+  }, 2000);
 }
 
 function endGame() {
