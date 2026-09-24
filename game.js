@@ -89,8 +89,8 @@ const sounds = new SoundSystem();
 const GAME_CONFIG = {
   duration: 45, // 45秒
   moveSpeed: 18.0,
-  stageWidth: 5.2, // 左右の移動可能範囲
-  catchRadius: 1.1, // 拾いやすい甘めの判定
+  stageWidth: 3.7, // 画面端でも見切れない安全な移動可能範囲（±1.85）
+  catchRadius: 1.15, // 拾いやすい甘めの判定
   maxTower: 5, // パンタワーの最大数 (これに達するとボーナス収納)
 };
 
@@ -180,7 +180,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_8';
+const CACHE_BUST = 'v=20260924_9';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -291,6 +291,7 @@ function playAnimation(name, fadeDuration = 0.25, loop = true) {
 
 // --- 5. 操作入力（タッチ・マウス・キーボード） ---
 let isPointerDown = false;
+let runHoldTimer = 0;
 
 function setTargetFromClientX(clientX) {
   const rect = container.getBoundingClientRect();
@@ -315,16 +316,20 @@ window.addEventListener('pointercancel', () => isPointerDown = false);
 
 // キーボード操作
 const keys = {};
+let isKeyMoving = false;
 window.addEventListener('keydown', (e) => keys[e.key] = true);
 window.addEventListener('keyup', (e) => keys[e.key] = false);
 
 function handleKeyboardInput(delta) {
-  const speed = 7.0;
+  const speed = 6.5;
+  isKeyMoving = false;
   if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
     gameState.targetX -= speed * delta;
+    isKeyMoving = true;
   }
   if (keys['ArrowRight'] || keys['d'] || keys['D']) {
     gameState.targetX += speed * delta;
+    isKeyMoving = true;
   }
   gameState.targetX = Math.max(-GAME_CONFIG.stageWidth * 0.5, Math.min(GAME_CONFIG.stageWidth * 0.5, gameState.targetX));
 }
@@ -475,21 +480,30 @@ function animate() {
     handleKeyboardInput(delta);
 
     // 純くんの移動（ターゲットXへスムーズに補間）
+    const prevX = gameState.playerX;
     const diff = gameState.targetX - gameState.playerX;
     gameState.playerX += diff * Math.min(1.0, GAME_CONFIG.moveSpeed * delta);
+    const movedDist = Math.abs(gameState.playerX - prevX);
+
+    // 移動フラグ判定: キー操作中、ポインタ操作で差分がある、または実際に動いている
+    const isActivelyMoving = isKeyMoving || (isPointerDown && Math.abs(diff) > 0.04) || movedDist > 0.005;
+    if (isActivelyMoving) {
+      runHoldTimer = 0.2; // 0.2秒間は走り状態を確実にキープ
+    } else if (runHoldTimer > 0) {
+      runHoldTimer -= delta;
+    }
 
     if (junKunGroup) {
       junKunGroup.position.x = gameState.playerX;
 
-      // 移動中はCarry_Runアニメーション、止まっている時はCarry_Idle
-      if (Math.abs(diff) > 0.15) {
-        playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.15);
-        // 少し進行方向に体を傾ける
-        const tilt = diff > 0 ? 0.2 : -0.2;
-        junKunGroup.rotation.y = tilt;
+      // 移動中は確実にCarry_Run、停止時はCarry_Idle
+      if (runHoldTimer > 0) {
+        playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
+        const targetTilt = diff > 0.04 ? 0.15 : (diff < -0.04 ? -0.15 : 0);
+        junKunGroup.rotation.y += (targetTilt - junKunGroup.rotation.y) * 10 * delta;
       } else {
         playAnimation(animations['Carry_Idle'] ? 'Carry_Idle' : 'Idle', 0.2);
-        junKunGroup.rotation.y = 0;
+        junKunGroup.rotation.y += (0 - junKunGroup.rotation.y) * 10 * delta;
       }
 
       // 箱の中のパンを純くんの移動に追従＆可愛く揺らす
