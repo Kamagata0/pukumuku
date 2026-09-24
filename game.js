@@ -173,21 +173,77 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_11';
+const CACHE_BUST = 'v=20260924_12';
 
 const breadTemplates = {};
 const activeBreads = [];
 
-// パンの色フォールバック定義
-const BREAD_COLOR_FALLBACKS = {
-  bread_loaf: [0x8b3a0e, 0xfff6e6],
-  bread_croissant: 0xc45c12,
-  bread_melon: 0xf5d060,
-  bread_gold: 0xffd700,
-  bread_burnt: 0x221c18
-};
+// --- リアル画像テクスチャ生成システム (CanvasTexture) ---
+function createMelonBreadTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#E8C15A';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.strokeStyle = '#9E741A';
+  ctx.lineWidth = 10;
+  for (let i = -256; i < 512; i += 40) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 256, 256); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(i, 256); ctx.lineTo(i + 256, 0); ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
 
-// プクムク実店舗 3D背景モデルの読み込み（画面にすっぽり収まる可愛いサイズ）
+function createCroissantTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#D66518';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let y = 0; y < 256; y += 24) {
+    ctx.fillStyle = (y % 48 === 0) ? '#F5A845' : '#8B3205';
+    ctx.fillRect(0, y, 256, 12);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function createLoafBreadTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#FFF8EE';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.lineWidth = 28;
+  ctx.strokeStyle = '#8B4210';
+  ctx.strokeRect(14, 14, 228, 228);
+  ctx.fillStyle = '#783508';
+  ctx.fillRect(0, 0, 256, 70);
+  return new THREE.CanvasTexture(c);
+}
+
+function createSignboardTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#E52B18';
+  ctx.fillRect(0, 0, 512, 128);
+  ctx.strokeStyle = '#FDD835';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(6, 6, 500, 116);
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PANKOUBOU PUKUMUKU', 256, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+const melonTex = createMelonBreadTexture();
+const croissantTex = createCroissantTexture();
+const loafTex = createLoafBreadTexture();
+const signTex = createSignboardTexture();
+
+// プクムク実店舗 3D背景モデルの読み込み
 loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
   const shop = gltf.scene;
   shop.position.set(0, 0, -1.6);
@@ -196,6 +252,13 @@ loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
   shop.traverse((child) => {
     if (child.isMesh) {
       child.receiveShadow = true;
+      if (child.name.includes('Awning') || child.name.includes('Red') || child.name.includes('plate')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: signTex,
+          color: 0xFFFFFF,
+          roughness: 0.4
+        });
+      }
     }
   });
   scene.add(shop);
@@ -204,8 +267,6 @@ loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
 // 純くん（箱持ち＆上見上げ新モデル）の読み込み
 loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   junKun = gltf.scene;
-
-  // 最初から直立＆正面向き（木箱を抱えて上を見上げる姿勢）で完全正規化済み！
   junKun.rotation.set(0, 0, 0);
 
   // ゲームの面白さ・難易度向上のためコンパクト化（0.72）
@@ -222,14 +283,11 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
 
   junKunGroup.add(junKun);
 
-  // アニメーションセットアップ (Carry_Idle & Carry_Run)
   mixer = new THREE.AnimationMixer(junKun);
   gltf.animations.forEach((clip) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
-  console.log("Loaded animations:", Object.keys(animations));
-  // 箱持ち見上げ待機アニメーションを再生！
   if (animations['Carry_Idle']) {
     playAnimation('Carry_Idle');
   } else if (Object.keys(animations).length > 0) {
@@ -237,26 +295,25 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
-// パンモデルの読み込み (キャッシュバスター付与 ＆ 色フォールバック適用)
+// パンモデルの読み込み (画像テクスチャを確実に適用！)
 Object.keys(BREAD_TYPES).forEach((key) => {
   loader.load(`models/${key}.glb?${CACHE_BUST}`, (gltf) => {
     const model = gltf.scene;
     
-    // マテリアルの色が消えたり白飛びしないよう確実に着色補正
     model.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
-        if (key === 'bread_gold') {
+        if (key === 'bread_melon') {
+          child.material = new THREE.MeshStandardMaterial({ map: melonTex, roughness: 0.5 });
+        } else if (key === 'bread_croissant') {
+          child.material = new THREE.MeshStandardMaterial({ map: croissantTex, roughness: 0.45 });
+        } else if (key === 'bread_loaf') {
+          child.material = new THREE.MeshStandardMaterial({ map: loafTex, roughness: 0.55 });
+        } else if (key === 'bread_gold') {
           child.material = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.85, roughness: 0.2 });
         } else if (key === 'bread_burnt') {
-          child.material = new THREE.MeshStandardMaterial({ color: 0x221C18, roughness: 0.95 });
-        } else if (key === 'bread_croissant') {
-          child.material = new THREE.MeshStandardMaterial({ color: 0xD86A18, roughness: 0.45 });
-        } else if (key === 'bread_melon') {
-          child.material = new THREE.MeshStandardMaterial({ color: 0xF2C649, roughness: 0.5 });
-        } else if (key === 'bread_loaf') {
-          child.material = new THREE.MeshStandardMaterial({ color: 0xC67D3E, roughness: 0.55 });
+          child.material = new THREE.MeshStandardMaterial({ color: 0x241C18, roughness: 0.95 });
         }
       }
     });
@@ -290,11 +347,22 @@ function playAnimation(name, fadeDuration = 0.25, loop = true) {
 let isPointerDown = false;
 let runHoldTimer = 0;
 
+// 画面のアスペクト比・視野角に応じた安全な移動限界X（どんな端末でも絶対に見切れない！）
+function getSafeMoveLimit() {
+  const dist = camera.position.z; // 4.3
+  const vFovRad = (camera.fov * Math.PI) / 180;
+  const halfH = Math.tan(vFovRad * 0.5) * dist;
+  const halfW = halfH * camera.aspect;
+  // 純くんの体幅とマージン (0.32) を差し引いた限界値
+  return Math.max(0.6, halfW - 0.32);
+}
+
 function setTargetFromClientX(clientX) {
   const rect = container.getBoundingClientRect();
   const normalizedX = ((clientX - rect.left) / rect.width) * 2 - 1; // -1 ~ 1
-  gameState.targetX = normalizedX * (GAME_CONFIG.stageWidth * 0.5);
-  gameState.targetX = Math.max(-GAME_CONFIG.stageWidth * 0.5, Math.min(GAME_CONFIG.stageWidth * 0.5, gameState.targetX));
+  const limitX = getSafeMoveLimit();
+  gameState.targetX = normalizedX * limitX;
+  gameState.targetX = Math.max(-limitX, Math.min(limitX, gameState.targetX));
 }
 
 container.addEventListener('pointerdown', (e) => {
@@ -319,6 +387,7 @@ window.addEventListener('keyup', (e) => keys[e.key] = false);
 
 function handleKeyboardInput(delta) {
   const speed = 6.5;
+  const limitX = getSafeMoveLimit();
   isKeyMoving = false;
   if (keys['ArrowLeft'] || keys['a'] || keys['A']) {
     gameState.targetX -= speed * delta;
@@ -328,7 +397,7 @@ function handleKeyboardInput(delta) {
     gameState.targetX += speed * delta;
     isKeyMoving = true;
   }
-  gameState.targetX = Math.max(-GAME_CONFIG.stageWidth * 0.5, Math.min(GAME_CONFIG.stageWidth * 0.5, gameState.targetX));
+  gameState.targetX = Math.max(-limitX, Math.min(limitX, gameState.targetX));
 }
 
 // --- 6. パンの生成 & 落下管理 ---
@@ -358,8 +427,11 @@ function spawnBread() {
   const scale = def.scale;
   breadMesh.scale.set(scale, scale, scale);
 
-  const spawnX = (Math.random() - 0.5) * GAME_CONFIG.stageWidth;
-  breadMesh.position.set(spawnX, 7.5, 0);
+  // 画面上部の完全一定ライン（Y = 4.0）から綺麗にスポーン！
+  const spawnHeight = 4.0;
+  const limitX = getSafeMoveLimit() * 0.92;
+  const spawnX = (Math.random() * 2 - 1) * limitX;
+  breadMesh.position.set(spawnX, spawnHeight, 0);
 
   activeBreads.push({
     mesh: breadMesh,
@@ -480,6 +552,8 @@ function animate() {
     const prevX = gameState.playerX;
     const diff = gameState.targetX - gameState.playerX;
     gameState.playerX += diff * Math.min(1.0, GAME_CONFIG.moveSpeed * delta);
+    const limitX = getSafeMoveLimit();
+    gameState.playerX = Math.max(-limitX, Math.min(limitX, gameState.playerX));
     const movedDist = Math.abs(gameState.playerX - prevX);
 
     // 移動フラグ判定: キー操作中、ポインタ操作で差分がある、または実際に動いている
