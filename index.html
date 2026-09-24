@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>純くんの焼きたてパンキャッチ！ - パン工房プクムク</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Google Fonts: かわいい丸ゴシック -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700;800;900&display=swap"
+    rel="stylesheet">
+  <!-- Three.js & GLTFLoader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+
+<body>
+  <div id="game-container">
+    <!-- 3Dレンダリング用キャンバス -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- ヘッダーUI（スコア・タイマー） -->
+    <div id="header-ui">
+      <div class="score-card">
+        <span class="label">本日の純利益</span>
+        <div class="value-container">
+          <span class="currency">¥</span>
+          <span id="score-text">0</span>
+        </div>
+      </div>
+      <div class="timer-card">
+        <span class="label">のこり時間</span>
+        <div class="time-value">
+          <span id="timer-text">45</span><span class="unit">秒</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- キャッチ時ポップアップエフェクトコンテナ -->
+    <div id="popup-container"></div>
+
+    <!-- スタートオーバーレイ画面 -->
+    <div id="start-screen" class="overlay active">
+      <div class="modal-card">
+        <div class="badge">パン工房プクムク 公式ゲーム</div>
+        <h1 class="game-title">純くんの<br><span class="highlight">焼きたてパンキャッチ！</span></h1>
+        <div class="char-preview">
+          <p class="desc">🥐 落ちてくるパンをキャッチして<br>お店の<strong>「純利益」</strong>を増やそう！</p>
+        </div>
+        <div class="instruction">
+          <div class="icon-touch">👉 📱</div>
+          <p>画面を<strong>ゆびで左右になぞるだけ</strong>！<br><small>(パソコンはマウスか ◀ ▶ キー)</small></p>
+        </div>
+        <button id="start-btn" class="main-btn">パンを焼く！（スタート）</button>
+      </div>
+    </div>
+
+    <!-- リザルト画面 -->
+    <div id="result-screen" class="overlay">
+      <div class="modal-card result-card">
+        <div class="result-header">🎉 営業終了！ 🎉</div>
+        <div class="result-title">本日の純利益</div>
+        <div class="final-score">
+          <span class="currency">¥</span><span id="final-score-text">0</span>
+        </div>
+        <div id="rank-badge" class="rank-badge">大繁盛パン職人！</div>
+
+        <div class="bread-stats" id="bread-stats">
+          <!-- 集めたパンの内訳 -->
+        </div>
+
+        <p class="greeting-text">「ご来店ありがとうございました！」</p>
+        <button id="restart-btn" class="main-btn">もう一回あそぶ！</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+
+</html>
