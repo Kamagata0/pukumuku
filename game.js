@@ -180,7 +180,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_7';
+const CACHE_BUST = 'v=20260924_8';
 
 const breadTemplates = {};
 const activeBreads = [];

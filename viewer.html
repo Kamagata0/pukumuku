@@ -74,7 +74,7 @@
   <div id="ui-panel">
     <h2>🥐 純くん アニメーション確認</h2>
     <p>
-      <b>・お顔テクスチャ完全復元</b>（アイボリー肌色＋つぶらな黒目＋赤ほっぺ）<br>
+      <b>・お顔テクスチャ完全再現</b>（赤い顔に黒い線）<br>
       <b>・左右トコトコ走（サイドステップ）</b>（左右にピョコピョコ跳ねる可愛い動き）<br>
       <b>・上見上げ＋木箱抱え込み</b>
     </p>
@@ -126,7 +126,7 @@
     let activeAction = null;
 
     const loader = new THREE.GLTFLoader();
-    loader.load('models/jun_kun_carry_box.glb?v=20260924_7', (gltf) => {
+    loader.load('models/jun_kun_carry_box.glb?v=20260924_8', (gltf) => {
       const model = gltf.scene;
       model.position.set(0, 0, 0);
       scene.add(model);
