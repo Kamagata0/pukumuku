@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>純くん アニメーション確認ビューワー</title>
+  <style>
+    body {
+      margin: 0;
+      background: #fdf6ec;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #canvas-container {
+      width: 100vw;
+      height: 100vh;
+    }
+    #ui-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.92);
+      padding: 18px 24px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      max-width: 320px;
+    }
+    h2 {
+      margin: 0 0 10px 0;
+      font-size: 18px;
+      color: #793802;
+    }
+    p {
+      margin: 0 0 14px 0;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.5;
+    }
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    button {
+      flex: 1;
+      padding: 10px 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #f28b24;
+      color: white;
+      transition: all 0.2s;
+    }
+    button:hover {
+      background: #d87310;
+      transform: translateY(-2px);
+    }
+    button.active {
+      background: #793802;
+    }
+    .tip {
+      font-size: 12px;
+      color: #888;
+      border-top: 1px solid #eee;
+      padding-top: 10px;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <div id="ui-panel">
+    <h2>🥐 純くん アニメーション確認</h2>
+    <p>・お腹の前で可愛い木箱をギュッと抱え込み<br>・上空のパンを見上げる（約25度）<br>・トコトコ走るサイクルアニメーション</p>
+    <div class="btn-group">
+      <button id="btn-run" class="active" onclick="setAnim('Carry_Run')">🏃‍♂️ トコトコ走る</button>
+      <button id="btn-idle" onclick="setAnim('Carry_Idle')">✨ 待機（呼吸）</button>
+    </div>
+    <div class="tip">💡 画面をドラッグして360度自由に回転・ズームして確認できます！</div>
+  </div>
+
+  <div id="canvas-container"></div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xfcf3e3);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 1.8, 3.8);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.9, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+
+    // ライト
+    const ambientLight = new THREE.AmbientLight(0xffeedd, 0.9);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    dirLight.position.set(3, 8, 5);
+    dirLight.castShadow = true;
+    scene.add(dirLight);
+
+    // グリッド床
+    const grid = new THREE.GridHelper(10, 20, 0xd4a373, 0xe9d2b8);
+    grid.position.y = 0;
+    scene.add(grid);
+
+    let mixer = null;
+    let actions = {};
+    let activeAction = null;
+
+    const loader = new THREE.GLTFLoader();
+    loader.load('models/jun_kun_carry_box.glb?v=20260924_test', (gltf) => {
+      const model = gltf.scene;
+      model.position.set(0, 0, 0);
+      scene.add(model);
+
+      mixer = new THREE.AnimationMixer(model);
+      gltf.animations.forEach((clip) => {
+        actions[clip.name] = mixer.clipAction(clip);
+      });
+
+      console.log("Found animations:", Object.keys(actions));
+      if (actions['Carry_Run']) {
+        setAnim('Carry_Run');
+      } else if (Object.keys(actions).length > 0) {
+        setAnim(Object.keys(actions)[0]);
+      }
+    });
+
+    function setAnim(name) {
+      if (!actions[name]) return;
+      if (activeAction) activeAction.fadeOut(0.2);
+      activeAction = actions[name];
+      activeAction.reset().fadeIn(0.2).play();
+
+      document.getElementById('btn-run').classList.toggle('active', name === 'Carry_Run');
+      document.getElementById('btn-idle').classList.toggle('active', name === 'Carry_Idle');
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+      if (mixer) mixer.update(delta);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
