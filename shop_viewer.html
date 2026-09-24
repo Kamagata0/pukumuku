@@ -88,9 +88,14 @@
     const grid = new THREE.GridHelper(12, 24, 0xd4a373, 0xe9d2b8);
     scene.add(grid);
 
-    const loader = new THREE.GLTFLoader();
-    loader.load('models/pukumuku_shop.glb?v=20260924_12', (gltf) => {
-      scene.add(gltf.scene);
+    const texLoader = new THREE.TextureLoader();
+    texLoader.load('models/pukumuku_facade.png?v=20260924_13', (tex) => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const geo = new THREE.PlaneGeometry(6.4, 3.71);
+      const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8 });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(0, 1.85, 0);
+      scene.add(mesh);
     });
 
     window.addEventListener('resize', () => {

@@ -135,11 +135,11 @@ renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
-// 白飛びしない温かい照明
-const ambientLight = new THREE.AmbientLight(0xFFF0D6, 0.95);
+// 温かい照明（白飛びを抑え、鮮やかな壁画を引き立てる）
+const ambientLight = new THREE.AmbientLight(0xFFF2DE, 0.78);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xFFE5B4, 1.15);
+const dirLight = new THREE.DirectionalLight(0xFFE5B4, 1.05);
 dirLight.position.set(3, 9, 5);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 1024;
@@ -173,12 +173,50 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_12';
+const CACHE_BUST = 'v=20260924_13';
 
 const breadTemplates = {};
 const activeBreads = [];
 
 // --- リアル画像テクスチャ生成システム (CanvasTexture) ---
+// 実店舗の写真そっくりの「明るい黄色 ＋ 青とオレンジのポップな壁画」
+function createShopWallTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+  // 実店舗写真と同じ明るい黄色ベース
+  ctx.fillStyle = '#FFEB3B';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // 鮮やかなスカイブルーのキノコ・パン模様パターン
+  ctx.fillStyle = '#29B6F6';
+  for (let y = 30; y < 512; y += 90) {
+    for (let x = (y % 180 === 30 ? 30 : 75); x < 512; x += 100) {
+      ctx.beginPath();
+      ctx.arc(x, y, 26, Math.PI, 0);
+      ctx.lineTo(x + 14, y + 28);
+      ctx.lineTo(x - 14, y + 28);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+
+  // ポップなオレンジのアクセント柄
+  ctx.fillStyle = '#FF7043';
+  for (let y = 75; y < 512; y += 90) {
+    for (let x = (y % 180 === 75 ? 30 : 80); x < 512; x += 100) {
+      ctx.beginPath();
+      ctx.arc(x, y, 16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  return tex;
+}
+
 function createMelonBreadTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
@@ -238,30 +276,27 @@ function createSignboardTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+const shopWallTex = createShopWallTexture();
 const melonTex = createMelonBreadTexture();
 const croissantTex = createCroissantTexture();
 const loafTex = createLoafBreadTexture();
 const signTex = createSignboardTexture();
 
-// プクムク実店舗 3D背景モデルの読み込み
-loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
-  const shop = gltf.scene;
-  shop.position.set(0, 0, -1.6);
-  shop.scale.set(0.68, 0.68, 0.68);
-  shop.rotation.set(0, 0, 0);
-  shop.traverse((child) => {
-    if (child.isMesh) {
-      child.receiveShadow = true;
-      if (child.name.includes('Awning') || child.name.includes('Red') || child.name.includes('plate')) {
-        child.material = new THREE.MeshStandardMaterial({
-          map: signTex,
-          color: 0xFFFFFF,
-          roughness: 0.4
-        });
-      }
-    }
+// 実店舗写真そのままの「パン工房プクムク」実写高精細ファサード背景！
+const texLoader = new THREE.TextureLoader();
+texLoader.load(`models/pukumuku_facade.png?${CACHE_BUST}`, (facadeTex) => {
+  facadeTex.colorSpace = THREE.SRGBColorSpace;
+  // 写真のアスペクト比 (921:534 ≒ 1.72:1) に忠実なファサードボード
+  const facadeGeo = new THREE.PlaneGeometry(5.2, 3.02);
+  const facadeMat = new THREE.MeshStandardMaterial({
+    map: facadeTex,
+    roughness: 0.85,
+    metalness: 0.02
   });
-  scene.add(shop);
+  const facadeMesh = new THREE.Mesh(facadeGeo, facadeMat);
+  facadeMesh.position.set(0, 1.51, -1.8);
+  facadeMesh.receiveShadow = true;
+  scene.add(facadeMesh);
 });
 
 // 純くん（箱持ち＆上見上げ新モデル）の読み込み
