@@ -173,34 +173,41 @@ scene.add(wall);
 
 // --- 4. モデル読み込み ---
 const loader = new THREE.GLTFLoader();
+const junKunGroup = new THREE.Group();
+scene.add(junKunGroup);
+
 let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-let junBaseScale = 1.0;
-const JUN_FACING_ROTATION = 0; // 新モデルは正面向きで正規化済み
+const CACHE_BUST = 'v=20260924_2';
 
 const breadTemplates = {};
 const activeBreads = [];
 
+// パンの色フォールバック定義（万が一の白飛びを100%防ぐ二重安全設計）
+const BREAD_COLOR_FALLBACKS = {
+  bread_loaf: [0x8b3a0e, 0xfff6e6],
+  bread_croissant: 0xc45c12,
+  bread_melon: 0xf5d060,
+  bread_gold: 0xffd700,
+  bread_burnt: 0x221c18
+};
+
 // 純くん（オリジナルカラー完全復元版）の読み込み
-loader.load('models/jun_kun_restored.glb', (gltf) => {
+loader.load(`models/jun_kun_restored.glb?${CACHE_BUST}`, (gltf) => {
   junKun = gltf.scene;
 
-  // サイズを計測して確実に身長1.65mに合わせる
-  const bbox = new THREE.Box3().setFromObject(junKun);
-  const size = bbox.getSize(new THREE.Vector3());
-  console.log("Restored Jun-kun size:", size);
+  // 【最重要】BlenderのZ-up座標からThree.jsのY-up座標へ90度引き起こし！
+  // これにより頭が真上（Y+）、足が真下（Y-）、顔が正面（カメラ方向）に直立します
+  junKun.rotation.x = -Math.PI * 0.5;
 
-  if (size.y > 0) {
-    junBaseScale = 1.65 / size.y;
-    junKun.scale.set(junBaseScale, junBaseScale, junBaseScale);
-  }
+  // 身長を画面に心地よい適正サイズ（約1.55m）にスケーリング
+  const scale = 0.34;
+  junKun.scale.set(scale, scale, scale);
 
-  // 足元が床にぴったり着くようにY座標調整
-  const scaledBbox = new THREE.Box3().setFromObject(junKun);
-  junKun.position.set(0, -scaledBbox.min.y, 0);
-  junKun.rotation.y = JUN_FACING_ROTATION;
+  // 足元が床（y = 0）にピッタリ接地するように位置調整
+  junKun.position.set(0, 0, 0);
 
   junKun.traverse((child) => {
     if (child.isMesh) {
@@ -209,7 +216,7 @@ loader.load('models/jun_kun_restored.glb', (gltf) => {
     }
   });
 
-  scene.add(junKun);
+  junKunGroup.add(junKun);
 
   // アニメーションセットアップ
   mixer = new THREE.AnimationMixer(junKun);
@@ -221,15 +228,41 @@ loader.load('models/jun_kun_restored.glb', (gltf) => {
   playAnimation('Idle');
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
-// パンモデルの読み込み
+// パンモデルの読み込み (キャッシュバスター付与 ＆ 色フォールバック適用)
 Object.keys(BREAD_TYPES).forEach((key) => {
-  loader.load(`models/${key}.glb`, (gltf) => {
-    breadTemplates[key] = gltf.scene;
-    breadTemplates[key].traverse((child) => {
+  loader.load(`models/${key}.glb?${CACHE_BUST}`, (gltf) => {
+    const model = gltf.scene;
+    
+    // マテリアルの色が白飛びしていないか確認・着色補正
+    model.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
+        if (child.material) {
+          // メタリック・ラフネスの調整でテカりすぎを防止
+          if (key === 'bread_gold') {
+            child.material.color = new THREE.Color(0xffd700);
+            child.material.metalness = 0.85;
+            child.material.roughness = 0.2;
+          } else if (key === 'bread_burnt') {
+            child.material.color = new THREE.Color(0x221c18);
+            child.material.roughness = 0.95;
+          } else if (key === 'bread_croissant') {
+            child.material.color = new THREE.Color(0xc45c12);
+            child.material.roughness = 0.4;
+          } else if (key === 'bread_melon') {
+            child.material.color = new THREE.Color(0xf5d060);
+            child.material.roughness = 0.5;
+          } else if (key === 'bread_loaf') {
+            if (Array.isArray(child.material) && child.material.length >= 2) {
+              child.material[0].color = new THREE.Color(0x8b3a0e);
+              child.material[1].color = new THREE.Color(0xfff6e6);
+            }
+          }
+        }
       }
     });
+
+    breadTemplates[key] = model;
   });
 });
 
@@ -442,18 +475,18 @@ function animate() {
     const diff = gameState.targetX - gameState.playerX;
     gameState.playerX += diff * Math.min(1.0, GAME_CONFIG.moveSpeed * delta);
 
-    if (junKun) {
-      junKun.position.x = gameState.playerX;
+    if (junKunGroup) {
+      junKunGroup.position.x = gameState.playerX;
 
       // 移動中はRunアニメーション、止まっている時はIdle
       if (Math.abs(diff) > 0.15) {
         playAnimation('Run', 0.15);
-        // 少し進行方向に体を傾ける (正面向きベース + 傾き)
+        // 少し進行方向に体を傾ける
         const tilt = diff > 0 ? 0.25 : -0.25;
-        junKun.rotation.y = JUN_FACING_ROTATION + tilt;
+        junKunGroup.rotation.y = tilt;
       } else {
         playAnimation('Idle', 0.2);
-        junKun.rotation.y = JUN_FACING_ROTATION;
+        junKunGroup.rotation.y = 0;
       }
 
       // タワーのパンを純くんの頭上に追従＆ゆらゆら揺らす
