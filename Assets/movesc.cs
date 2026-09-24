@@ -30,4 +30,17 @@ public class CubeMove : MonoBehaviour
 
         }
     }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        var bread = other.GetComponent<Pukumuku.BreadItem>();
+        if (bread != null && !bread.IsCollected)
+        {
+            bread.Collect();
+            if (Pukumuku.PukumukuGameManager.Instance != null)
+            {
+                Pukumuku.PukumukuGameManager.Instance.OnBreadCollected(bread.Type, bread.ScoreValue);
+            }
+        }
+    }
 }
