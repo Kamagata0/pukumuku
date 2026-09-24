@@ -123,10 +123,10 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xFFF3DE); // 優しいパン屋の店内カラー
 scene.fog = new THREE.Fog(0xFFF3DE, 12, 30);
 
-// カメラ: Unity風の立体的な斜め見下ろしアングル（クォータービュー）
-const camera = new THREE.PerspectiveCamera(52, container.clientWidth / container.clientHeight, 0.1, 100);
-camera.position.set(0, 3.6, 4.8);
-camera.lookAt(0, 0.8, 0);
+// カメラ: 正面アングル（純くんとお空から降るパンが画面全体で見渡せるベストビュー）
+const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.set(0, 1.45, 4.3);
+camera.lookAt(0, 1.35, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
@@ -136,10 +136,10 @@ renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
 
 // 白飛びしない温かい照明
-const ambientLight = new THREE.AmbientLight(0xFFF0D6, 0.9);
+const ambientLight = new THREE.AmbientLight(0xFFF0D6, 0.95);
 scene.add(ambientLight);
 
-const dirLight = new THREE.DirectionalLight(0xFFE5B4, 1.1);
+const dirLight = new THREE.DirectionalLight(0xFFE5B4, 1.15);
 dirLight.position.set(3, 9, 5);
 dirLight.castShadow = true;
 dirLight.shadow.mapSize.width = 1024;
@@ -156,20 +156,13 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 // カウンターの市松模様のラグ
-const rugGeo = new THREE.PlaneGeometry(5, 18);
+const rugGeo = new THREE.PlaneGeometry(4.6, 18);
 const rugMat = new THREE.MeshStandardMaterial({ color: 0xF7DCB4, roughness: 0.8 });
 const rug = new THREE.Mesh(rugGeo, rugMat);
 rug.rotation.x = -Math.PI / 2;
 rug.position.set(0, 0.01, 0);
 rug.receiveShadow = true;
 scene.add(rug);
-
-// 店内の背景壁
-const wallGeo = new THREE.PlaneGeometry(20, 14);
-const wallMat = new THREE.MeshStandardMaterial({ color: 0xFEE8D0, roughness: 0.9 });
-const wall = new THREE.Mesh(wallGeo, wallMat);
-wall.position.set(0, 5, -5);
-scene.add(wall);
 
 // --- 4. モデル読み込み ---
 const loader = new THREE.GLTFLoader();
@@ -180,7 +173,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_9';
+const CACHE_BUST = 'v=20260924_10';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -193,6 +186,19 @@ const BREAD_COLOR_FALLBACKS = {
   bread_gold: 0xffd700,
   bread_burnt: 0x221c18
 };
+
+// プクムク実店舗 3D背景モデルの読み込み
+loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
+  const shop = gltf.scene;
+  shop.position.set(0, 0, -1.8); // 純くんの後ろに寄り添うように配置
+  shop.rotation.set(0, 0, 0);
+  shop.traverse((child) => {
+    if (child.isMesh) {
+      child.receiveShadow = true;
+    }
+  });
+  scene.add(shop);
+});
 
 // 純くん（箱持ち＆上見上げ新モデル）の読み込み
 loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
@@ -400,9 +406,9 @@ function addBreadToTower(typeKey) {
   towerItem.scale.set(0.38, 0.38, 0.38);
 
   const idx = gameState.towerBreads.length;
-  // 純くんが両手で抱える可愛い木箱の中にコロンと収まる！
-  const h = 1.24 + idx * 0.14;
-  towerItem.position.set(gameState.playerX, h, 0.32);
+  // 純くんが抱える木箱の中にすっぽり収まり、順番に上に積み重なる！
+  const h = 0.72 + idx * 0.13;
+  towerItem.position.set(gameState.playerX, h, 0.28);
   scene.add(towerItem);
 
   gameState.towerBreads.push(towerItem);
@@ -506,12 +512,13 @@ function animate() {
         junKunGroup.rotation.y += (0 - junKunGroup.rotation.y) * 10 * delta;
       }
 
-      // 箱の中のパンを純くんの移動に追従＆可愛く揺らす
+      // 木箱の中のパンを純くんの移動に追従＆可愛く揺らす
       gameState.towerBreads.forEach((bread, idx) => {
         bread.position.x = gameState.playerX;
-        bread.position.y = 1.24 + idx * 0.14;
-        bread.position.z = 0.32;
-        bread.rotation.z = Math.sin(clock.getElapsedTime() * 3 + idx) * 0.04;
+        bread.position.y = 0.72 + idx * 0.13;
+        bread.position.z = 0.28;
+        bread.rotation.z = Math.sin(clock.getElapsedTime() * 4 + idx) * 0.05;
+        bread.rotation.y = idx * 0.2;
       });
     }
 
@@ -653,6 +660,9 @@ function endGame() {
     <div>✨ 金パン: ${gameState.breadCount.bread_gold}個</div>
   `;
 
+  // 🏆 歴代ランキングの保存＆表示
+  saveAndRenderRanking(gameState.score);
+
   // リザルト画面表示
   resultScreen.classList.add('active');
 
@@ -662,6 +672,54 @@ function endGame() {
   setTimeout(() => {
     playAnimation('Bow', 0.3, false);
   }, 3200);
+}
+
+// --- 8. 歴代プクムク純利益ランキングシステム ---
+const RANKING_STORAGE_KEY = 'pukumuku_bakery_ranking_v1';
+
+function getRankings() {
+  try {
+    const raw = localStorage.getItem(RANKING_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveAndRenderRanking(currentScore) {
+  let rankings = getRankings();
+  const now = new Date();
+  const dateStr = `${now.getMonth() + 1}/${now.getDate()} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+  const currentEntry = {
+    id: Date.now(),
+    score: currentScore,
+    date: dateStr,
+    totalBreads: Object.values(gameState.breadCount).reduce((a, b) => a + b, 0)
+  };
+
+  rankings.push(currentEntry);
+  rankings.sort((a, b) => b.score - a.score);
+  rankings = rankings.slice(0, 5);
+
+  try {
+    localStorage.setItem(RANKING_STORAGE_KEY, JSON.stringify(rankings));
+  } catch (e) {}
+
+  const rankingListEl = document.getElementById('ranking-list');
+  if (rankingListEl) {
+    const medals = ['🥇', '🥈', '🥉', '4位', '5位'];
+    rankingListEl.innerHTML = rankings.map((item, idx) => {
+      const isCurrent = item.id === currentEntry.id;
+      return `
+        <div class="ranking-row ${isCurrent ? 'current-play' : ''}">
+          <span class="ranking-rank">${medals[idx] || (idx + 1 + '位')}</span>
+          <span class="ranking-score">¥${item.score.toLocaleString()}</span>
+          <span class="ranking-date">${item.date}</span>
+        </div>
+      `;
+    }).join('');
+  }
 }
 
 // イベントリスナー
