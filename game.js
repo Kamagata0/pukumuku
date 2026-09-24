@@ -549,13 +549,13 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
-  // 初期状態: 純くんが画面左外（X = -2.8）から中央（X = 0）へ歩いて登場する！
-  gameState.isOpening = true;
-  gameState.openingStage = 1; // 1: 歩行登場中
+  // 初期状態: 純くんは左画面外（X = -2.8）で静かにスタンバイ！スタートボタンが押されてから歩き出します
+  gameState.isOpening = false;
+  gameState.openingStage = 0;
   gameState.playerX = -2.8;
-  gameState.targetX = 0;
+  gameState.targetX = -2.8;
   junKunGroup.position.x = -2.8;
-  junKunGroup.rotation.y = 0.2; // 右向き歩行
+  junKunGroup.rotation.y = 0.25; // 右向きスタンバイ
 
   // 手元の箱は持たず、地面の中央に木箱を設置
   if (junBreadBox) {
@@ -563,8 +563,8 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   }
   spawnGroundBasket(0, 0.045, 0.15);
 
-  if (animations['Carry_Run']) {
-    playAnimation('Carry_Run', 0.2);
+  if (animations['Carry_Idle']) {
+    playAnimation('Carry_Idle', 0.2);
   }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
@@ -871,8 +871,32 @@ function animate() {
             junKunGroup.position.x = 0;
             junKunGroup.rotation.y = 0;
             if (animations['Wave']) {
-              playAnimation('Wave', 0.2, true);
+              playAnimation('Wave', 0.2, false);
             }
+
+            // 1.2秒手を振った後、地面の籠を拾い上げてゲームスタート！
+            setTimeout(() => {
+              if (groundBasket) {
+                scene.remove(groundBasket);
+                groundBasket = null;
+              }
+              if (junBreadBox) {
+                junBreadBox.visible = true;
+              }
+              if (animations['Carry_Idle']) {
+                playAnimation('Carry_Idle', 0.2);
+              }
+              if (headerUI) {
+                headerUI.style.opacity = '1';
+              }
+              sounds.playOvenDing();
+              showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
+
+              setTimeout(() => {
+                gameState.isOpening = false;
+                gameState.isRunning = true;
+              }, 400);
+            }, 1200);
           }
         }
       }
@@ -1003,36 +1027,25 @@ animate();
 // --- 10. ゲーム開始 & 終了処理 ---
 function startGame() {
   sounds.init();
-  sounds.playOvenDing();
 
   startScreen.classList.remove('active');
   resultScreen.classList.remove('active');
 
-  // 手を振るのをやめ、足元の木箱を「よっこいしょ」と拾い上げる！
-  if (groundBasket) {
-    scene.remove(groundBasket);
-    groundBasket = null;
-  }
-  if (junBreadBox) {
-    junBreadBox.visible = true;
-  }
-  if (animations['Carry_Idle']) {
-    playAnimation('Carry_Idle', 0.2);
-  }
-
-  // スコア・タイマーUIをパッとフェードイン表示！
+  // スコア・タイマーUIは最初は非表示！
   if (headerUI) {
-    headerUI.style.opacity = '1';
+    headerUI.style.opacity = '0';
   }
 
-  showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
+  // 残っているパンをクリア
+  activeBreads.forEach((b) => scene.remove(b.mesh));
+  activeBreads.length = 0;
+
+  // タワーのパンをクリア
+  gameState.towerBreads.forEach((m) => scene.remove(m));
+  gameState.towerBreads = [];
 
   gameState.score = 0;
   gameState.timeLeft = GAME_CONFIG.duration;
-  gameState.isOpening = false;
-  gameState.isEnding = false;
-  gameState.isBowing = false;
-  gameState.isRunning = true;
   gameState.combo = 0;
   gameState.isFever = false;
   gameState.breadCount = {
@@ -1045,24 +1058,32 @@ function startGame() {
     bread_gold: 0,
     bread_burnt: 0
   };
-  gameState.playerX = 0;
-  gameState.targetX = 0;
-
-  if (junKunGroup) {
-    junKunGroup.position.x = 0;
-    junKunGroup.rotation.y = 0;
-  }
-
-  // 残っているパンをクリア
-  activeBreads.forEach((b) => scene.remove(b.mesh));
-  activeBreads.length = 0;
-
-  // タワーのパンをクリア
-  gameState.towerBreads.forEach((m) => scene.remove(m));
-  gameState.towerBreads = [];
-
   updateScoreUI();
   updateTimerUI();
+
+  // ★スタートボタンが押された瞬間、純くんが画面左外から中央へ歩き出す！
+  gameState.isRunning = false;
+  gameState.isEnding = false;
+  gameState.isBowing = false;
+  gameState.isOpening = true;
+  gameState.openingStage = 1; // 1: 左外から歩行中
+
+  gameState.playerX = -2.8;
+  gameState.targetX = 0;
+  if (junKunGroup) {
+    junKunGroup.position.x = -2.8;
+    junKunGroup.rotation.y = 0.25; // 右向き
+  }
+
+  // 手元の箱は持たず、地面の中央に木箱を配置
+  if (junBreadBox) {
+    junBreadBox.visible = false;
+  }
+  spawnGroundBasket(0, 0.045, 0.15);
+
+  if (animations['Carry_Run']) {
+    playAnimation('Carry_Run', 0.12);
+  }
 }
 
 function endGame() {
