@@ -123,10 +123,10 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xFFF3DE); // 優しいパン屋の店内カラー
 scene.fog = new THREE.Fog(0xFFF3DE, 12, 30);
 
-// カメラ: 純くんの全身が画面の約1/3〜1/2で大きく見え、上からのパンも見える黄金画角
-const camera = new THREE.PerspectiveCamera(48, container.clientWidth / container.clientHeight, 0.1, 100);
-camera.position.set(0, 2.2, 4.6);
-camera.lookAt(0, 1.0, 0);
+// カメラ: Unity風の立体的な斜め見下ろしアングル（クォータービュー）
+const camera = new THREE.PerspectiveCamera(52, container.clientWidth / container.clientHeight, 0.1, 100);
+camera.position.set(0, 3.6, 4.8);
+camera.lookAt(0, 0.8, 0);
 
 const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
 renderer.setSize(container.clientWidth, container.clientHeight);
@@ -180,7 +180,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_2';
+const CACHE_BUST = 'v=20260924_3';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -198,9 +198,9 @@ const BREAD_COLOR_FALLBACKS = {
 loader.load(`models/jun_kun_restored.glb?${CACHE_BUST}`, (gltf) => {
   junKun = gltf.scene;
 
-  // 【最重要】BlenderのZ-up座標からThree.jsのY-up座標へ90度引き起こし！
-  // これにより頭が真上（Y+）、足が真下（Y-）、顔が正面（カメラ方向）に直立します
-  junKun.rotation.x = -Math.PI * 0.5;
+  // 【最重要】BlenderのZ-up座標からThree.jsのY-up座標へ完全直立引き起こし！
+  // rotation.x = Math.PI * 0.5 により、頭が真上（Y+）、足が真下（床）、顔が正面（カメラ方向）に直立します
+  junKun.rotation.x = Math.PI * 0.5;
 
   // 身長を画面に心地よい適正サイズ（約1.55m）にスケーリング
   const scale = 0.34;
