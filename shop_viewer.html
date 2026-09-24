@@ -146,13 +146,43 @@
       return new THREE.CanvasTexture(c);
     }
 
+    function createMoonTexture() {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#F4D03F'; ctx.beginPath(); ctx.arc(256, 256, 230, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 14; ctx.stroke();
+      ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.ellipse(220, 200, 30, 42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#1A1A1A'; ctx.beginPath(); ctx.arc(225, 205, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(250, 230); ctx.quadraticCurveTo(310, 235, 270, 260); ctx.stroke();
+      ctx.beginPath(); ctx.arc(230, 280, 28, 0.2, Math.PI * 0.9); ctx.stroke();
+      ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(140, 320); ctx.lineTo(80, 420); ctx.lineTo(130, 470); ctx.stroke();
+      return new THREE.CanvasTexture(c);
+    }
+    function createCloudTexture() {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#FFFFFF'; ctx.beginPath(); ctx.arc(256, 256, 230, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1A1A1A'; ctx.lineWidth = 14; ctx.stroke();
+      ctx.fillStyle = '#1A1A1A';
+      ctx.beginPath(); ctx.arc(210, 210, 20, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(290, 210, 20, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(210, 180, 22, Math.PI, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(290, 180, 22, Math.PI, 0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(250, 250, 16, 0, Math.PI); ctx.stroke();
+      ctx.beginPath(); ctx.arc(250, 285, 20, 0.1, Math.PI * 0.9); ctx.stroke();
+      ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(340, 310); ctx.lineTo(410, 400); ctx.lineTo(370, 460); ctx.stroke();
+      return new THREE.CanvasTexture(c);
+    }
+
     const wallTex = createShopWallTexture();
     const woodTex = createWoodTexture();
     const signTex = createSignboardTexture();
     const sunFaceTex = createSunFaceTexture();
+    const moonTex = createMoonTexture();
+    const cloudTex = createCloudTexture();
 
     const gltfLoader = new THREE.GLTFLoader();
-    gltfLoader.load('models/pukumuku_shop.glb?v=20260924_16', (gltf) => {
+    gltfLoader.load('models/pukumuku_shop.glb?v=20260924_17', (gltf) => {
       const shop = gltf.scene;
       shop.position.set(0, 0, 0);
       shop.traverse((child) => {
@@ -167,10 +197,12 @@
             child.material = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.5 });
           } else if (n.includes('SunFace')) {
             child.material = new THREE.MeshStandardMaterial({ map: sunFaceTex, roughness: 0.3 });
+          } else if (n.includes('Moon')) {
+            child.material = new THREE.MeshStandardMaterial({ map: moonTex, roughness: 0.3 });
+          } else if (n.includes('Cloud')) {
+            child.material = new THREE.MeshStandardMaterial({ map: cloudTex, roughness: 0.3 });
           } else if (n.includes('Bread')) {
             child.material = new THREE.MeshStandardMaterial({ color: 0xD37318, roughness: 0.4 });
-          } else if (n.includes('Moon')) {
-            child.material = new THREE.MeshStandardMaterial({ color: 0xF4D03F, roughness: 0.3 });
           } else if (n.includes('SunFlame')) {
             child.material = new THREE.MeshStandardMaterial({ color: 0xE74C3C, roughness: 0.4 });
           }

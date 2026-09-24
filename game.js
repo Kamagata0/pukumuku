@@ -281,16 +281,21 @@ function createSunFaceTexture() {
   ctx.arc(256, 256, 240, 0, Math.PI * 2);
   ctx.fill();
 
-  // つぶらな黒い瞳と眉毛
+  // 太い黒の輪郭線
+  ctx.strokeStyle = '#1A1A1A';
+  ctx.lineWidth = 14;
+  ctx.stroke();
+
+  // つぶらな黒い瞳と二重まぶた・眉毛
   ctx.fillStyle = '#1A1A1A';
   // 左目 & 眉
-  ctx.beginPath(); ctx.arc(180, 200, 22, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(180, 160, 26, Math.PI, 0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(175, 195, 26, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(175, 155, 30, Math.PI, 0); ctx.stroke();
   // 右目 & 眉
-  ctx.beginPath(); ctx.arc(332, 200, 22, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(332, 160, 26, Math.PI, 0); ctx.stroke();
-  // 鼻
-  ctx.beginPath(); ctx.arc(256, 240, 16, 0, Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(337, 195, 26, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(337, 155, 30, Math.PI, 0); ctx.stroke();
+  // 丸い鼻
+  ctx.beginPath(); ctx.arc(256, 235, 18, 0, Math.PI); ctx.stroke();
 
   // 下部の赤いアーチ帯（住所看板）
   ctx.fillStyle = '#E74C3C';
@@ -300,12 +305,94 @@ function createSunFaceTexture() {
   ctx.lineTo(392, 360);
   ctx.closePath();
   ctx.fill();
+  ctx.stroke();
 
   // 住所の白文字
   ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 20px sans-serif';
+  ctx.font = 'bold 22px sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('NAKANOKU MINAMIDAI 4-6-4', 256, 335);
+
+  return new THREE.CanvasTexture(c);
+}
+
+// 5. 写真通りの看板の上の「黄色い月」キャラクター（目・鼻・口・伸びる腕）
+function createMoonTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+  // 黄色い三日月ボディ
+  ctx.fillStyle = '#F4D03F';
+  ctx.beginPath();
+  ctx.arc(256, 256, 230, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#1A1A1A';
+  ctx.lineWidth = 14;
+  ctx.stroke();
+
+  // 目と白目・黒目
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath(); ctx.ellipse(220, 200, 30, 42, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#1A1A1A';
+  ctx.beginPath(); ctx.arc(225, 205, 16, 0, Math.PI * 2); ctx.fill();
+
+  // ニョキッと伸びた鼻
+  ctx.beginPath();
+  ctx.moveTo(250, 230);
+  ctx.quadraticCurveTo(310, 235, 270, 260);
+  ctx.stroke();
+
+  // 微笑む口
+  ctx.beginPath();
+  ctx.arc(230, 280, 28, 0.2, Math.PI * 0.9);
+  ctx.stroke();
+
+  // 腕と手（看板を掴む長い手）
+  ctx.lineWidth = 16;
+  ctx.beginPath();
+  ctx.moveTo(140, 320);
+  ctx.lineTo(80, 420);
+  ctx.lineTo(130, 470);
+  ctx.stroke();
+
+  return new THREE.CanvasTexture(c);
+}
+
+// 6. 写真通りの看板の上の「白い雲」キャラクター（もくもく・目・眉・伸びる腕）
+function createCloudTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+  // 白い雲ボディ
+  ctx.fillStyle = '#FFFFFF';
+  ctx.beginPath();
+  ctx.arc(256, 256, 230, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#1A1A1A';
+  ctx.lineWidth = 14;
+  ctx.stroke();
+
+  // つぶらな黒い瞳と眉毛
+  ctx.fillStyle = '#1A1A1A';
+  ctx.beginPath(); ctx.arc(210, 210, 20, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(290, 210, 20, 0, Math.PI * 2); ctx.fill();
+  // 眉
+  ctx.beginPath(); ctx.arc(210, 180, 22, Math.PI, 0); ctx.stroke();
+  ctx.beginPath(); ctx.arc(290, 180, 22, Math.PI, 0); ctx.stroke();
+
+  // 鼻と口
+  ctx.beginPath(); ctx.arc(250, 250, 16, 0, Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(250, 285, 20, 0.1, Math.PI * 0.9); ctx.stroke();
+
+  // 看板を掴む腕と指
+  ctx.lineWidth = 16;
+  ctx.beginPath();
+  ctx.moveTo(340, 310);
+  ctx.lineTo(410, 400);
+  ctx.lineTo(370, 460);
+  ctx.stroke();
 
   return new THREE.CanvasTexture(c);
 }
@@ -446,6 +533,9 @@ const baguetteTex = createBaguetteTexture();
 const anpanTex = createAnpanTexture();
 const burntTex = createBurntTexture();
 
+const moonTex = createMoonTexture();
+const cloudTex = createCloudTexture();
+
 // 店舗モデルの読み込み＆全パーツへの美しいテクスチャ適用！
 loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
   const shop = gltf.scene;
@@ -478,15 +568,20 @@ loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
           map: sunFaceTex,
           roughness: 0.3
         });
+      } else if (n.includes('Moon')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: moonTex,
+          roughness: 0.3
+        });
+      } else if (n.includes('Cloud')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: cloudTex,
+          roughness: 0.3
+        });
       } else if (n.includes('Bread')) {
         child.material = new THREE.MeshStandardMaterial({
           color: 0xD37318,
           roughness: 0.4
-        });
-      } else if (n.includes('Moon')) {
-        child.material = new THREE.MeshStandardMaterial({
-          color: 0xF4D03F,
-          roughness: 0.3
         });
       } else if (n.includes('SunFlame')) {
         child.material = new THREE.MeshStandardMaterial({
@@ -832,8 +927,7 @@ function animate() {
 
     // 純くんの移動（ターゲットXへスムーズに補間）
     const prevX = gameState.playerX;
-    const diff = gameState.targetX - gameState.playerX;
-    const moveSpd = (gameState.isEnding || gameState.isOpening) ? 3.6 : GAME_CONFIG.moveSpeed;
+    const moveSpd = gameState.isOpening ? 1.7 : (gameState.isEnding ? 2.4 : GAME_CONFIG.moveSpeed);
     gameState.playerX += diff * Math.min(1.0, moveSpd * delta);
 
     // ゲーム中のみ画面端でクランプ（オープニングの画面外からの歩行を阻害しない！）
