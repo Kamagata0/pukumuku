@@ -90,16 +90,16 @@ const GAME_CONFIG = {
   duration: 45, // 45秒
   moveSpeed: 18.0,
   stageWidth: 3.7, // 画面端でも見切れない安全な移動可能範囲（±1.85）
-  catchRadius: 1.15, // 拾いやすい甘めの判定
+  catchRadius: 0.85, // キャラクター縮小に合わせた適正判定
   maxTower: 5, // パンタワーの最大数 (これに達するとボーナス収納)
 };
 
 const BREAD_TYPES = {
-  bread_loaf: { name: "山型食パン", score: 100, scale: 0.85, speed: 3.5, prob: 0.35 },
-  bread_croissant: { name: "クロワッサン", score: 200, scale: 0.9, speed: 4.0, prob: 0.28 },
-  bread_melon: { name: "メロンパン", score: 300, scale: 0.85, speed: 3.8, prob: 0.22 },
-  bread_gold: { name: "金のプクムクパン", score: 1000, scale: 0.95, speed: 4.5, prob: 0.07 },
-  bread_burnt: { name: "コゲパン", score: 0, scale: 0.8, speed: 4.2, prob: 0.08 }
+  bread_loaf: { name: "山型食パン", score: 100, scale: 0.42, speed: 3.5, prob: 0.35 },
+  bread_croissant: { name: "クロワッサン", score: 200, scale: 0.42, speed: 4.0, prob: 0.28 },
+  bread_melon: { name: "メロンパン", score: 300, scale: 0.42, speed: 3.8, prob: 0.22 },
+  bread_gold: { name: "金のプクムクパン", score: 1000, scale: 0.42, speed: 4.5, prob: 0.07 },
+  bread_burnt: { name: "コゲパン", score: 0, scale: 0.42, speed: 4.2, prob: 0.08 }
 };
 
 let gameState = {
@@ -173,7 +173,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_10';
+const CACHE_BUST = 'v=20260924_11';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -187,10 +187,11 @@ const BREAD_COLOR_FALLBACKS = {
   bread_burnt: 0x221c18
 };
 
-// プクムク実店舗 3D背景モデルの読み込み
+// プクムク実店舗 3D背景モデルの読み込み（画面にすっぽり収まる可愛いサイズ）
 loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
   const shop = gltf.scene;
-  shop.position.set(0, 0, -1.8); // 純くんの後ろに寄り添うように配置
+  shop.position.set(0, 0, -1.6);
+  shop.scale.set(0.68, 0.68, 0.68);
   shop.rotation.set(0, 0, 0);
   shop.traverse((child) => {
     if (child.isMesh) {
@@ -207,8 +208,8 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   // 最初から直立＆正面向き（木箱を抱えて上を見上げる姿勢）で完全正規化済み！
   junKun.rotation.set(0, 0, 0);
 
-  // 画面にちょうど良い愛らしいサイズに設定
-  const scale = 0.95;
+  // ゲームの面白さ・難易度向上のためコンパクト化（0.72）
+  const scale = 0.72;
   junKun.scale.set(scale, scale, scale);
   junKun.position.set(0, 0, 0);
 
@@ -241,31 +242,21 @@ Object.keys(BREAD_TYPES).forEach((key) => {
   loader.load(`models/${key}.glb?${CACHE_BUST}`, (gltf) => {
     const model = gltf.scene;
     
-    // マテリアルの色が白飛びしていないか確認・着色補正
+    // マテリアルの色が消えたり白飛びしないよう確実に着色補正
     model.traverse((child) => {
       if (child.isMesh) {
         child.castShadow = true;
-        if (child.material) {
-          // メタリック・ラフネスの調整でテカりすぎを防止
-          if (key === 'bread_gold') {
-            child.material.color = new THREE.Color(0xffd700);
-            child.material.metalness = 0.85;
-            child.material.roughness = 0.2;
-          } else if (key === 'bread_burnt') {
-            child.material.color = new THREE.Color(0x221c18);
-            child.material.roughness = 0.95;
-          } else if (key === 'bread_croissant') {
-            child.material.color = new THREE.Color(0xc45c12);
-            child.material.roughness = 0.4;
-          } else if (key === 'bread_melon') {
-            child.material.color = new THREE.Color(0xf5d060);
-            child.material.roughness = 0.5;
-          } else if (key === 'bread_loaf') {
-            if (Array.isArray(child.material) && child.material.length >= 2) {
-              child.material[0].color = new THREE.Color(0x8b3a0e);
-              child.material[1].color = new THREE.Color(0xfff6e6);
-            }
-          }
+        child.receiveShadow = true;
+        if (key === 'bread_gold') {
+          child.material = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.85, roughness: 0.2 });
+        } else if (key === 'bread_burnt') {
+          child.material = new THREE.MeshStandardMaterial({ color: 0x221C18, roughness: 0.95 });
+        } else if (key === 'bread_croissant') {
+          child.material = new THREE.MeshStandardMaterial({ color: 0xD86A18, roughness: 0.45 });
+        } else if (key === 'bread_melon') {
+          child.material = new THREE.MeshStandardMaterial({ color: 0xF2C649, roughness: 0.5 });
+        } else if (key === 'bread_loaf') {
+          child.material = new THREE.MeshStandardMaterial({ color: 0xC67D3E, roughness: 0.55 });
         }
       }
     });
@@ -403,12 +394,12 @@ function addBreadToTower(typeKey) {
   if (!template) return;
 
   const towerItem = template.clone();
-  towerItem.scale.set(0.38, 0.38, 0.38);
+  towerItem.scale.set(0.26, 0.26, 0.26);
 
   const idx = gameState.towerBreads.length;
   // 純くんが抱える木箱の中にすっぽり収まり、順番に上に積み重なる！
-  const h = 0.72 + idx * 0.13;
-  towerItem.position.set(gameState.playerX, h, 0.28);
+  const h = 0.52 + idx * 0.09;
+  towerItem.position.set(gameState.playerX, h, 0.20);
   scene.add(towerItem);
 
   gameState.towerBreads.push(towerItem);
@@ -515,8 +506,8 @@ function animate() {
       // 木箱の中のパンを純くんの移動に追従＆可愛く揺らす
       gameState.towerBreads.forEach((bread, idx) => {
         bread.position.x = gameState.playerX;
-        bread.position.y = 0.72 + idx * 0.13;
-        bread.position.z = 0.28;
+        bread.position.y = 0.52 + idx * 0.09;
+        bread.position.z = 0.20;
         bread.rotation.z = Math.sin(clock.getElapsedTime() * 4 + idx) * 0.05;
         bread.rotation.y = idx * 0.2;
       });

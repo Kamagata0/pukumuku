@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>パン工房プクムク 店舗3Dモデル確認ビューワー</title>
+  <style>
+    body {
+      margin: 0;
+      background: #fdf6ec;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+    #ui-panel {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 16px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      max-width: 320px;
+      z-index: 10;
+    }
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 17px;
+      color: #793802;
+    }
+    p {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.5;
+    }
+    .tip {
+      font-size: 12px;
+      color: #d87310;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body>
+  <div id="ui-panel">
+    <h2>🥖 パン工房プクムク 店舗モデル確認</h2>
+    <p>
+      ・赤い看板「PUKUMUKU」オーニング<br>
+      ・黄色い月 ＆ 白い雲のキャラクター<br>
+      ・右側の名物「大きな太陽のゲート」<br>
+      ・木枠のショーケース窓口＆引き戸
+    </p>
+    <div class="tip">💡 マウスドラッグで360度回転・ホイールで拡大縮小できます！</div>
+  </div>
+
+  <div id="canvas-container" style="width:100vw; height:100vh;"></div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xfcf3e3);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 2.5, 7.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 2.0, 0);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffeedd, 0.95));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.1);
+    dir.position.set(4, 8, 6);
+    scene.add(dir);
+
+    const grid = new THREE.GridHelper(12, 24, 0xd4a373, 0xe9d2b8);
+    scene.add(grid);
+
+    const loader = new THREE.GLTFLoader();
+    loader.load('models/pukumuku_shop.glb?v=20260924_11', (gltf) => {
+      scene.add(gltf.scene);
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

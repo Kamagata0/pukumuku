@@ -340,8 +340,13 @@ html {
 }
 
 @keyframes pulseRank {
-  from { transform: scale(1); }
-  to { transform: scale(1.02); }
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.02);
+  }
 }
 
 .ranking-rank {
