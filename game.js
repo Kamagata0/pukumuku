@@ -180,12 +180,12 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_3';
+const CACHE_BUST = 'v=20260924_4';
 
 const breadTemplates = {};
 const activeBreads = [];
 
-// パンの色フォールバック定義（万が一の白飛びを100%防ぐ二重安全設計）
+// パンの色フォールバック定義
 const BREAD_COLOR_FALLBACKS = {
   bread_loaf: [0x8b3a0e, 0xfff6e6],
   bread_croissant: 0xc45c12,
@@ -194,19 +194,16 @@ const BREAD_COLOR_FALLBACKS = {
   bread_burnt: 0x221c18
 };
 
-// 純くん（オリジナルカラー完全復元版）の読み込み
-loader.load(`models/jun_kun_restored.glb?${CACHE_BUST}`, (gltf) => {
+// 純くん（箱持ち＆上見上げ新モデル）の読み込み
+loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   junKun = gltf.scene;
 
-  // 【最重要】BlenderのZ-up座標からThree.jsのY-up座標へ完全直立引き起こし！
-  // rotation.x = Math.PI * 0.5 により、頭が真上（Y+）、足が真下（床）、顔が正面（カメラ方向）に直立します
-  junKun.rotation.x = Math.PI * 0.5;
+  // 最初から直立＆正面向き（木箱を抱えて上を見上げる姿勢）で完全正規化済み！
+  junKun.rotation.set(0, 0, 0);
 
-  // 身長を画面に心地よい適正サイズ（約1.55m）にスケーリング
-  const scale = 0.34;
+  // 画面にちょうど良い愛らしいサイズに設定
+  const scale = 0.95;
   junKun.scale.set(scale, scale, scale);
-
-  // 足元が床（y = 0）にピッタリ接地するように位置調整
   junKun.position.set(0, 0, 0);
 
   junKun.traverse((child) => {
@@ -218,14 +215,19 @@ loader.load(`models/jun_kun_restored.glb?${CACHE_BUST}`, (gltf) => {
 
   junKunGroup.add(junKun);
 
-  // アニメーションセットアップ
+  // アニメーションセットアップ (Carry_Idle & Carry_Run)
   mixer = new THREE.AnimationMixer(junKun);
   gltf.animations.forEach((clip) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
   console.log("Loaded animations:", Object.keys(animations));
-  playAnimation('Idle');
+  // 箱持ち見上げ待機アニメーションを再生！
+  if (animations['Carry_Idle']) {
+    playAnimation('Carry_Idle');
+  } else if (Object.keys(animations).length > 0) {
+    playAnimation(Object.keys(animations)[0]);
+  }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
 // パンモデルの読み込み (キャッシュバスター付与 ＆ 色フォールバック適用)
@@ -390,16 +392,17 @@ function addBreadToTower(typeKey) {
   if (!template) return;
 
   const towerItem = template.clone();
-  towerItem.scale.set(0.35, 0.35, 0.35);
+  towerItem.scale.set(0.38, 0.38, 0.38);
 
   const idx = gameState.towerBreads.length;
-  const h = 1.7 + idx * 0.22;
-  towerItem.position.set(gameState.playerX, h, 0);
+  // 純くんが両手で抱える可愛い木箱の中にコロンと収まる！
+  const h = 0.95 + idx * 0.16;
+  towerItem.position.set(gameState.playerX, h, 0.42);
   scene.add(towerItem);
 
   gameState.towerBreads.push(towerItem);
 
-  // 最大数に達したらボーナス収納！
+  // 箱がいっぱいになったらボーナス箱詰め！
   if (gameState.towerBreads.length >= GAME_CONFIG.maxTower) {
     setTimeout(packBreadTower, 200);
   }
@@ -478,22 +481,23 @@ function animate() {
     if (junKunGroup) {
       junKunGroup.position.x = gameState.playerX;
 
-      // 移動中はRunアニメーション、止まっている時はIdle
+      // 移動中はCarry_Runアニメーション、止まっている時はCarry_Idle
       if (Math.abs(diff) > 0.15) {
-        playAnimation('Run', 0.15);
+        playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.15);
         // 少し進行方向に体を傾ける
-        const tilt = diff > 0 ? 0.25 : -0.25;
+        const tilt = diff > 0 ? 0.2 : -0.2;
         junKunGroup.rotation.y = tilt;
       } else {
-        playAnimation('Idle', 0.2);
+        playAnimation(animations['Carry_Idle'] ? 'Carry_Idle' : 'Idle', 0.2);
         junKunGroup.rotation.y = 0;
       }
 
-      // タワーのパンを純くんの頭上に追従＆ゆらゆら揺らす
+      // 箱の中のパンを純くんの移動に追従＆可愛く揺らす
       gameState.towerBreads.forEach((bread, idx) => {
         bread.position.x = gameState.playerX;
-        bread.position.y = 1.7 + idx * 0.22;
-        bread.rotation.z = Math.sin(clock.getElapsedTime() * 4 + idx) * 0.08;
+        bread.position.y = 0.95 + idx * 0.16;
+        bread.position.z = 0.42;
+        bread.rotation.z = Math.sin(clock.getElapsedTime() * 3 + idx) * 0.04;
       });
     }
 
