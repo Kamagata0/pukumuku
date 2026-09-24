@@ -180,7 +180,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260924_4';
+const CACHE_BUST = 'v=20260924_7';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -396,8 +396,8 @@ function addBreadToTower(typeKey) {
 
   const idx = gameState.towerBreads.length;
   // 純くんが両手で抱える可愛い木箱の中にコロンと収まる！
-  const h = 0.95 + idx * 0.16;
-  towerItem.position.set(gameState.playerX, h, 0.42);
+  const h = 1.24 + idx * 0.14;
+  towerItem.position.set(gameState.playerX, h, 0.32);
   scene.add(towerItem);
 
   gameState.towerBreads.push(towerItem);
@@ -495,8 +495,8 @@ function animate() {
       // 箱の中のパンを純くんの移動に追従＆可愛く揺らす
       gameState.towerBreads.forEach((bread, idx) => {
         bread.position.x = gameState.playerX;
-        bread.position.y = 0.95 + idx * 0.16;
-        bread.position.z = 0.42;
+        bread.position.y = 1.24 + idx * 0.14;
+        bread.position.z = 0.32;
         bread.rotation.z = Math.sin(clock.getElapsedTime() * 3 + idx) * 0.04;
       });
     }
