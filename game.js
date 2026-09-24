@@ -191,40 +191,36 @@ const breadTemplates = {};
 const activeBreads = [];
 
 // --- リアル画像テクスチャ生成システム (CanvasTexture) ---
-// 1. 実店舗の写真そっくりの「温かみのある黄色 ＋ 青とオレンジのポップな壁画」
+// 1. 実写真（プクムク実店舗）に忠実な「温かみのあるクリーム壁 ＋ 青・黄・オレンジのプクムク模様」
 function createShopWallTexture() {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 512;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#FFE54C';
+  // 写真と同じナチュラルなクリームベージュ外壁
+  ctx.fillStyle = '#F5ECCF';
   ctx.fillRect(0, 0, 512, 512);
 
-  // レンガ・漆喰調のテクスチャライン
-  ctx.strokeStyle = '#FAD02C';
+  // 優しい漆喰・レンガ調の横ライン
+  ctx.strokeStyle = '#EAD8AA';
   ctx.lineWidth = 3;
   for (let y = 0; y < 512; y += 32) {
     ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
   }
 
-  // 鮮やかなスカイブルーのキノコ・パン模様パターン
-  ctx.fillStyle = '#1E90FF';
-  for (let y = 40; y < 512; y += 90) {
-    for (let x = (y % 180 === 40 ? 35 : 80); x < 512; x += 100) {
+  // 写真そっくりの青・黄・オレンジのプクムク型ブロックパターン
+  const colors = ['#2980B9', '#F1C40F', '#E67E22', '#27AE60'];
+  for (let row = 0; row < 12; row++) {
+    const y = row * 44 + 20;
+    const offset = (row % 2 === 0) ? 0 : 24;
+    for (let col = 0; col < 12; col++) {
+      const x = col * 48 + offset;
+      ctx.fillStyle = colors[(row + col) % colors.length];
       ctx.beginPath();
-      ctx.arc(x, y, 24, Math.PI, 0);
-      ctx.lineTo(x + 14, y + 26);
-      ctx.lineTo(x - 14, y + 26);
+      // 丸みのあるパン・キノコ・アルファベット型
+      ctx.arc(x, y - 6, 12, Math.PI, 0);
+      ctx.lineTo(x + 10, y + 10);
+      ctx.lineTo(x - 10, y + 10);
       ctx.closePath();
-      ctx.fill();
-    }
-  }
-
-  // ポップなオレンジのアクセント柄
-  ctx.fillStyle = '#FF5722';
-  for (let y = 85; y < 512; y += 90) {
-    for (let x = (y % 180 === 85 ? 35 : 85); x < 512; x += 100) {
-      ctx.beginPath();
-      ctx.arc(x, y, 16, 0, Math.PI * 2);
       ctx.fill();
     }
   }
@@ -235,160 +231,201 @@ function createShopWallTexture() {
   return tex;
 }
 
-// 2. 木製ショーケース・枠組み用 木目テクスチャ
+// 2. 木製ショーケース・枠組み用 リアル木目テクスチャ
 function createWoodTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#8D4925';
+  ctx.fillStyle = '#8B4823';
   ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = '#6E3414';
+  ctx.strokeStyle = '#683313';
   ctx.lineWidth = 4;
-  for (let y = 0; y < 256; y += 12) {
+  for (let y = 0; y < 256; y += 10) {
     ctx.beginPath();
-    ctx.moveTo(0, y + (Math.sin(y * 0.2) * 4));
-    ctx.lineTo(256, y + (Math.cos(y * 0.2) * 4));
+    ctx.moveTo(0, y + (Math.sin(y * 0.25) * 5));
+    ctx.lineTo(256, y + (Math.cos(y * 0.25) * 5));
     ctx.stroke();
   }
   return new THREE.CanvasTexture(c);
 }
 
-// 3. 看板「🍞 パン工房 PUKUMUKU 🥖」オーニングテクスチャ
+// 3. 写真通りの赤いオーニング看板「PANKOUBOU PUKUMUKU」
 function createSignboardTexture() {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 128;
   const ctx = c.getContext('2d');
-  // 鮮やかなプクムクレッド
-  ctx.fillStyle = '#E52417';
+  // 実写真通りの鮮やかなオレンジレッド
+  ctx.fillStyle = '#E74C3C';
   ctx.fillRect(0, 0, 512, 128);
-  // ゴールド枠
-  ctx.strokeStyle = '#FFE082';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(8, 8, 496, 112);
-  // 文字影
-  ctx.fillStyle = '#8E140B';
-  ctx.font = '900 34px sans-serif';
+  // 木枠の縁取り
+  ctx.strokeStyle = '#5E1B13';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(5, 5, 502, 118);
+  // 文字（黒の力強い太字フォント）
+  ctx.fillStyle = '#1A0E0B';
+  ctx.font = '900 36px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('🍞 PANKOUBOU PUKUMUKU 🥐', 258, 66);
-  // 文字白
-  ctx.fillStyle = '#FFFFFF';
-  ctx.fillText('🍞 PANKOUBOU PUKUMUKU 🥐', 256, 64);
+  ctx.fillText('PANKOUBOU PUKUMUKU', 256, 64);
   return new THREE.CanvasTexture(c);
 }
 
-// 4. メロンパンの焼き色＆格子
+// 4. 写真通りの名物「太陽ゲートの顔」（NAKANOKU MINAMIDAI 4-6-4）
+function createSunFaceTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 512;
+  const ctx = c.getContext('2d');
+  // 黄色い顔
+  ctx.fillStyle = '#F4D03F';
+  ctx.beginPath();
+  ctx.arc(256, 256, 240, 0, Math.PI * 2);
+  ctx.fill();
+
+  // つぶらな黒い瞳と眉毛
+  ctx.fillStyle = '#1A1A1A';
+  // 左目 & 眉
+  ctx.beginPath(); ctx.arc(180, 200, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(180, 160, 26, Math.PI, 0); ctx.stroke();
+  // 右目 & 眉
+  ctx.beginPath(); ctx.arc(332, 200, 22, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(332, 160, 26, Math.PI, 0); ctx.stroke();
+  // 鼻
+  ctx.beginPath(); ctx.arc(256, 240, 16, 0, Math.PI); ctx.stroke();
+
+  // 下部の赤いアーチ帯（住所看板）
+  ctx.fillStyle = '#E74C3C';
+  ctx.beginPath();
+  ctx.arc(256, 256, 230, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.lineTo(120, 360);
+  ctx.lineTo(392, 360);
+  ctx.closePath();
+  ctx.fill();
+
+  // 住所の白文字
+  ctx.fillStyle = '#FFFFFF';
+  ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('NAKANOKU MINAMIDAI 4-6-4', 256, 335);
+
+  return new THREE.CanvasTexture(c);
+}
+
+// 5. メロンパン: 一目でわかる鮮やかメロングリーン（抹茶・メロン色）！
 function createMelonBreadTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#EED279';
+  // 明るく鮮やかなメロングリーンベース
+  ctx.fillStyle = '#65C552';
   ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = '#936916';
-  ctx.lineWidth = 10;
-  for (let i = -256; i < 512; i += 40) {
+  // 濃いエメラルドグリーンの格子模様
+  ctx.strokeStyle = '#207817';
+  ctx.lineWidth = 14;
+  for (let i = -256; i < 512; i += 42) {
     ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 256, 256); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(i, 256); ctx.lineTo(i + 256, 0); ctx.stroke();
   }
   return new THREE.CanvasTexture(c);
 }
 
-// 5. クロワッサンの香ばしいパイ層
-function createCroissantTexture() {
-  const c = document.createElement('canvas');
-  c.width = 256; c.height = 256;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#D35D15';
-  ctx.fillRect(0, 0, 256, 256);
-  for (let y = 0; y < 256; y += 20) {
-    ctx.fillStyle = (y % 40 === 0) ? '#FFA23A' : '#7D2E04';
-    ctx.fillRect(0, y, 256, 10);
-  }
-  return new THREE.CanvasTexture(c);
-}
-
-// 6. 山型食パンの耳と白断面
-function createLoafBreadTexture() {
-  const c = document.createElement('canvas');
-  c.width = 256; c.height = 256;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#FFF8EE';
-  ctx.fillRect(0, 0, 256, 256);
-  ctx.lineWidth = 32;
-  ctx.strokeStyle = '#823807';
-  ctx.strokeRect(16, 16, 224, 224);
-  ctx.fillStyle = '#6E2A03';
-  ctx.fillRect(0, 0, 256, 75);
-  return new THREE.CanvasTexture(c);
-}
-
-// 7. チョココロネの渦巻き＆濃厚チョコ
+// 6. チョココロネ: 黄金のパン生地 ＆ 先端の濃厚ビターチョコレート！
 function createCornetTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#E59A44';
+  ctx.fillStyle = '#EA9F3E';
   ctx.fillRect(0, 0, 256, 256);
-  ctx.fillStyle = '#AF6519';
+  ctx.fillStyle = '#9C5812';
   for (let x = 0; x < 256; x += 36) {
-    ctx.fillRect(x, 0, 14, 256);
+    ctx.fillRect(x, 0, 16, 256);
   }
-  // 先端の濃密チョコ
-  ctx.fillStyle = '#3E1D0C';
+  // 先端の濃密ビターチョコ
+  ctx.fillStyle = '#150A05';
   ctx.beginPath();
-  ctx.arc(128, 128, 60, 0, Math.PI * 2);
+  ctx.arc(128, 128, 65, 0, Math.PI * 2);
+  ctx.fill();
+  // チョコのツヤ
+  ctx.fillStyle = 'rgba(255,255,255,0.25)';
+  ctx.beginPath();
+  ctx.arc(110, 110, 20, 0, Math.PI * 2);
   ctx.fill();
   return new THREE.CanvasTexture(c);
 }
 
-// 8. フランスパン（バゲット）のクープ
+// 7. 山型食パン: こんがり濃い焦げ茶の耳 ＆ 純白ふんわり断面！
+function createLoafBreadTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.lineWidth = 36;
+  ctx.strokeStyle = '#521F03';
+  ctx.strokeRect(18, 18, 220, 220);
+  ctx.fillStyle = '#421601';
+  ctx.fillRect(0, 0, 256, 78);
+  return new THREE.CanvasTexture(c);
+}
+
+// 8. クロワッサン: 深みのある濃い黄金キャラメル色＆パイ層！
+function createCroissantTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#DC5F0D';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let y = 0; y < 256; y += 20) {
+    ctx.fillStyle = (y % 40 === 0) ? '#FFAB40' : '#722403';
+    ctx.fillRect(0, y, 256, 11);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// 9. フランスパン（バゲット）: 香ばしい小麦色 ＆ クッキリ斜めクープ！
 function createBaguetteTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#E29742';
+  ctx.fillStyle = '#DE8A27';
   ctx.fillRect(0, 0, 256, 256);
-  // 斜めクープの切れ込み
-  ctx.fillStyle = '#FFF3D6';
-  ctx.strokeStyle = '#8B4513';
-  ctx.lineWidth = 6;
+  ctx.fillStyle = '#FFF5D6';
+  ctx.strokeStyle = '#783504';
+  ctx.lineWidth = 7;
   for (let y = 30; y < 256; y += 55) {
     ctx.beginPath();
-    ctx.ellipse(128, y, 70, 16, Math.PI / 6, 0, Math.PI * 2);
+    ctx.ellipse(128, y, 75, 18, Math.PI / 6, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
   }
   return new THREE.CanvasTexture(c);
 }
 
-// 9. 桜あんぱん（中央のへこみと黒ごま）
+// 10. 桜あんぱん: 艶やかな赤褐色 ＆ 黒ごま！
 function createAnpanTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#C86E20';
+  ctx.fillStyle = '#B44717';
   ctx.fillRect(0, 0, 256, 256);
-  // 中央の桜色・ケシの実
-  ctx.fillStyle = '#222222';
-  for (let i = 0; i < 28; i++) {
-    const rx = 128 + (Math.random() - 0.5) * 44;
-    const ry = 128 + (Math.random() - 0.5) * 44;
-    ctx.fillRect(rx, ry, 5, 5);
+  ctx.fillStyle = '#111111';
+  for (let i = 0; i < 35; i++) {
+    const rx = 128 + (Math.random() - 0.5) * 48;
+    const ry = 128 + (Math.random() - 0.5) * 48;
+    ctx.fillRect(rx, ry, 6, 6);
   }
   return new THREE.CanvasTexture(c);
 }
 
-// 10. コゲパン（炭化・ひび割れ）
+// 11. コゲパン: 炭化した漆黒 ＆ 赤い焦げひび割れ！
 function createBurntTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#1A1412';
+  ctx.fillStyle = '#0F0C0B';
   ctx.fillRect(0, 0, 256, 256);
-  // 赤い焦げひび割れ
-  ctx.strokeStyle = '#4A1D13';
-  ctx.lineWidth = 4;
-  for (let i = 0; i < 8; i++) {
+  ctx.strokeStyle = '#5E1005';
+  ctx.lineWidth = 5;
+  for (let i = 0; i < 9; i++) {
     ctx.beginPath();
     ctx.moveTo(Math.random() * 256, Math.random() * 256);
     ctx.lineTo(Math.random() * 256, Math.random() * 256);
@@ -400,6 +437,7 @@ function createBurntTexture() {
 const shopWallTex = createShopWallTexture();
 const woodTex = createWoodTexture();
 const signTex = createSignboardTexture();
+const sunFaceTex = createSunFaceTexture();
 const melonTex = createMelonBreadTexture();
 const croissantTex = createCroissantTexture();
 const loafTex = createLoafBreadTexture();
@@ -435,19 +473,24 @@ loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
           map: woodTex,
           roughness: 0.5
         });
+      } else if (n.includes('SunFace')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: sunFaceTex,
+          roughness: 0.3
+        });
       } else if (n.includes('Bread')) {
         child.material = new THREE.MeshStandardMaterial({
           color: 0xD37318,
           roughness: 0.4
         });
-      } else if (n.includes('SunFace') || n.includes('Moon')) {
+      } else if (n.includes('Moon')) {
         child.material = new THREE.MeshStandardMaterial({
-          color: 0xFFCA28,
+          color: 0xF4D03F,
           roughness: 0.3
         });
       } else if (n.includes('SunFlame')) {
         child.material = new THREE.MeshStandardMaterial({
-          color: 0xE53935,
+          color: 0xE74C3C,
           roughness: 0.4
         });
       }
@@ -460,6 +503,25 @@ loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
 let junBreadBox = null;
 let groundBasket = null;
 
+function spawnGroundBasket(x, y = 0.045, z = 0.15) {
+  if (!groundBasket) {
+    const geo = new THREE.BoxGeometry(0.24, 0.09, 0.16);
+    const mat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 });
+    groundBasket = new THREE.Mesh(geo, mat);
+    groundBasket.castShadow = true;
+    groundBasket.receiveShadow = true;
+  }
+  groundBasket.position.set(x, y, z);
+  scene.add(groundBasket);
+}
+
+// ヘッダーUI（スコア・タイマー）の初期非表示（最初は点数なしで純くんが登場！）
+const headerUI = document.getElementById('header-ui');
+if (headerUI) {
+  headerUI.style.opacity = '0';
+  headerUI.style.transition = 'opacity 0.5s ease';
+}
+
 // 純くん（箱持ち＆上見上げ新モデル）の読み込み
 loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   junKun = gltf.scene;
@@ -468,7 +530,6 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   // 難易度・アクション性向上のため、純くんをコンパクト化（0.58）
   const scale = 0.58;
   junKun.scale.set(scale, scale, scale);
-  junKun.position.set(0, 0, 0);
 
   junKun.traverse((child) => {
     if (child.isMesh) {
@@ -488,10 +549,16 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
-  // 初期画面（タイトル表示中）から、純くんがカメラに楽しそうに手を振る！
-  if (animations['Wave']) {
-    playAnimation('Wave', 0.2, true);
-  } else if (animations['Carry_Idle']) {
+  // 初期状態: 純くんは左画面外（X = -2.8）に待機、手元の箱は非表示、地面の中央に木箱を設置
+  gameState.playerX = -2.8;
+  gameState.targetX = -2.8;
+  junKunGroup.position.x = -2.8;
+  if (junBreadBox) {
+    junBreadBox.visible = false;
+  }
+  spawnGroundBasket(0, 0.045, 0.15);
+
+  if (animations['Carry_Idle']) {
     playAnimation('Carry_Idle', 0.2);
   }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
@@ -769,6 +836,7 @@ function animate() {
 
     // 移動フラグ判定
     const isActivelyMoving = (gameState.isRunning && (isKeyMoving || (isPointerDown && Math.abs(diff) > 0.04))) ||
+                             (gameState.isOpening && gameState.openingStage === 1) ||
                              (gameState.isEnding && Math.abs(diff) > 0.03) ||
                              movedDist > 0.004;
 
@@ -781,17 +849,68 @@ function animate() {
     if (junKunGroup) {
       junKunGroup.position.x = gameState.playerX;
 
-      // 終了演出中で中央に到着した場合はお辞儀アニメーション
-      if (gameState.isEnding && Math.abs(diff) <= 0.03 && !gameState.isBowing) {
-        gameState.isBowing = true;
-        junKunGroup.rotation.y = 0;
-        if (animations['Bow']) {
-          playAnimation('Bow', 0.25, false);
-        } else {
-          playAnimation('Carry_Idle', 0.2);
+      // オープニング演出中（左から中央へ歩いて登場）
+      if (gameState.isOpening) {
+        if (gameState.openingStage === 1) {
+          playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
+          junKunGroup.rotation.y = (diff > 0) ? 0.2 : 0;
+          if (Math.abs(diff) <= 0.04) {
+            // 中央に到着！正面を向いて手を振る！
+            gameState.openingStage = 2;
+            gameState.playerX = 0;
+            gameState.targetX = 0;
+            junKunGroup.position.x = 0;
+            junKunGroup.rotation.y = 0;
+            if (animations['Wave']) {
+              playAnimation('Wave', 0.2, false);
+            }
+
+            // 1.3秒手を振った後、地面の籠を拾い上げてゲーム開始！
+            setTimeout(() => {
+              if (groundBasket) {
+                scene.remove(groundBasket);
+                groundBasket = null;
+              }
+              if (junBreadBox) {
+                junBreadBox.visible = true;
+              }
+              if (animations['Carry_Idle']) {
+                playAnimation('Carry_Idle', 0.2);
+              }
+              if (headerUI) {
+                headerUI.style.opacity = '1';
+              }
+              sounds.playOvenDing();
+              showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
+
+              setTimeout(() => {
+                gameState.isOpening = false;
+                gameState.isRunning = true;
+              }, 400);
+            }, 1300);
+          }
         }
-      } else if (!gameState.isBowing) {
-        // 移動中はCarry_Run、停止時はCarry_Idle
+      }
+      // 終了演出中（中央へ歩いて到着後にお辞儀）
+      else if (gameState.isEnding) {
+        if (Math.abs(diff) <= 0.04 && !gameState.isBowing) {
+          gameState.isBowing = true;
+          gameState.playerX = 0;
+          gameState.targetX = 0;
+          junKunGroup.position.x = 0;
+          junKunGroup.rotation.y = 0;
+          if (animations['Bow']) {
+            playAnimation('Bow', 0.25, false);
+          } else {
+            playAnimation('Carry_Idle', 0.2);
+          }
+        } else if (!gameState.isBowing) {
+          playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
+          junKunGroup.rotation.y = (diff > 0) ? 0.2 : (diff < 0 ? -0.2 : 0);
+        }
+      }
+      // ゲームプレイ中
+      else {
         if (runHoldTimer > 0) {
           playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
           const targetTilt = diff > 0.04 ? 0.15 : (diff < -0.04 ? -0.15 : 0);
@@ -902,6 +1021,8 @@ function startGame() {
   gameState.score = 0;
   gameState.timeLeft = GAME_CONFIG.duration;
   gameState.isRunning = false;
+  gameState.isOpening = true;
+  gameState.openingStage = 1; // 1: 左から歩いて登場
   gameState.isEnding = false;
   gameState.isBowing = false;
   gameState.combo = 0;
@@ -916,22 +1037,25 @@ function startGame() {
     bread_gold: 0,
     bread_burnt: 0
   };
-  gameState.playerX = 0;
-  gameState.targetX = 0;
 
+  // 左画面外から登場スタート！
+  gameState.playerX = -2.8;
+  gameState.targetX = 0;
   if (junKunGroup) {
-    junKunGroup.position.x = 0;
+    junKunGroup.position.x = -2.8;
     junKunGroup.rotation.y = 0;
   }
 
-  // 地面に置いた籠があれば片付ける
-  if (groundBasket) {
-    scene.remove(groundBasket);
-    groundBasket = null;
-  }
-  // 純くんの手元の木箱を再表示
+  // 手元の木箱はまだ持たない
   if (junBreadBox) {
-    junBreadBox.visible = true;
+    junBreadBox.visible = false;
+  }
+  // 地面中央に置かれた木箱
+  spawnGroundBasket(0, 0.045, 0.15);
+
+  // ヘッダーUI（点数）は最初は非表示！
+  if (headerUI) {
+    headerUI.style.opacity = '0';
   }
 
   // 残っているパンをクリア
@@ -947,22 +1071,6 @@ function startGame() {
 
   startScreen.classList.remove('active');
   resultScreen.classList.remove('active');
-
-  // 開始演出: 純くんがカメラに元気に手を振る（Wave）！
-  if (animations['Wave']) {
-    playAnimation('Wave', 0.2, false);
-  } else {
-    playAnimation('Carry_Idle', 0.2);
-  }
-
-  // 1.1秒後にパン焼き・キャッチ本番スタート！
-  setTimeout(() => {
-    gameState.isRunning = true;
-    sounds.playOvenDing();
-    if (animations['Carry_Idle']) {
-      playAnimation('Carry_Idle', 0.2);
-    }
-  }, 1100);
 }
 
 function endGame() {
@@ -983,13 +1091,7 @@ function endGame() {
   if (junBreadBox) {
     junBreadBox.visible = false;
   }
-  if (!groundBasket) {
-    const geo = new THREE.BoxGeometry(0.24, 0.09, 0.16);
-    const mat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 });
-    groundBasket = new THREE.Mesh(geo, mat);
-  }
-  groundBasket.position.set(gameState.playerX, 0.045, 0.15);
-  scene.add(groundBasket);
+  spawnGroundBasket(gameState.playerX, 0.045, 0.15);
 
   finalScoreText.innerText = gameState.score.toLocaleString();
 

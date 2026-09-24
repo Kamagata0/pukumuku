@@ -113,9 +113,9 @@
     function createMelonBreadTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#EED279'; ctx.fillRect(0, 0, 256, 256);
-      ctx.strokeStyle = '#936916'; ctx.lineWidth = 10;
-      for (let i = -256; i < 512; i += 40) {
+      ctx.fillStyle = '#65C552'; ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#207817'; ctx.lineWidth = 14;
+      for (let i = -256; i < 512; i += 42) {
         ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 256, 256); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(i, 256); ctx.lineTo(i + 256, 0); ctx.stroke();
       }
@@ -124,39 +124,41 @@
     function createCroissantTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#D35D15'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#DC5F0D'; ctx.fillRect(0, 0, 256, 256);
       for (let y = 0; y < 256; y += 20) {
-        ctx.fillStyle = (y % 40 === 0) ? '#FFA23A' : '#7D2E04';
-        ctx.fillRect(0, y, 256, 10);
+        ctx.fillStyle = (y % 40 === 0) ? '#FFAB40' : '#722403';
+        ctx.fillRect(0, y, 256, 11);
       }
       return new THREE.CanvasTexture(c);
     }
     function createLoafBreadTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#FFF8EE'; ctx.fillRect(0, 0, 256, 256);
-      ctx.lineWidth = 32; ctx.strokeStyle = '#823807';
-      ctx.strokeRect(16, 16, 224, 224);
-      ctx.fillStyle = '#6E2A03'; ctx.fillRect(0, 0, 256, 75);
+      ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, 256, 256);
+      ctx.lineWidth = 36; ctx.strokeStyle = '#521F03';
+      ctx.strokeRect(18, 18, 220, 220);
+      ctx.fillStyle = '#421601'; ctx.fillRect(0, 0, 256, 78);
       return new THREE.CanvasTexture(c);
     }
     function createCornetTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#E59A44'; ctx.fillRect(0, 0, 256, 256);
-      ctx.fillStyle = '#AF6519';
-      for (let x = 0; x < 256; x += 36) ctx.fillRect(x, 0, 14, 256);
-      ctx.fillStyle = '#3E1D0C';
-      ctx.beginPath(); ctx.arc(128, 128, 60, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#EA9F3E'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#9C5812';
+      for (let x = 0; x < 256; x += 36) ctx.fillRect(x, 0, 16, 256);
+      ctx.fillStyle = '#150A05';
+      ctx.beginPath(); ctx.arc(128, 128, 65, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(110, 110, 20, 0, Math.PI * 2); ctx.fill();
       return new THREE.CanvasTexture(c);
     }
     function createBaguetteTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#E29742'; ctx.fillRect(0, 0, 256, 256);
-      ctx.fillStyle = '#FFF3D6'; ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 6;
+      ctx.fillStyle = '#DE8A27'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#FFF5D6'; ctx.strokeStyle = '#783504'; ctx.lineWidth = 7;
       for (let y = 30; y < 256; y += 55) {
-        ctx.beginPath(); ctx.ellipse(128, y, 70, 16, Math.PI / 6, 0, Math.PI * 2);
+        ctx.beginPath(); ctx.ellipse(128, y, 75, 18, Math.PI / 6, 0, Math.PI * 2);
         ctx.fill(); ctx.stroke();
       }
       return new THREE.CanvasTexture(c);
@@ -164,21 +166,21 @@
     function createAnpanTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#C86E20'; ctx.fillRect(0, 0, 256, 256);
-      ctx.fillStyle = '#222222';
-      for (let i = 0; i < 28; i++) {
-        const rx = 128 + (Math.random() - 0.5) * 44;
-        const ry = 128 + (Math.random() - 0.5) * 44;
-        ctx.fillRect(rx, ry, 5, 5);
+      ctx.fillStyle = '#B44717'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#111111';
+      for (let i = 0; i < 35; i++) {
+        const rx = 128 + (Math.random() - 0.5) * 48;
+        const ry = 128 + (Math.random() - 0.5) * 48;
+        ctx.fillRect(rx, ry, 6, 6);
       }
       return new THREE.CanvasTexture(c);
     }
     function createBurntTexture() {
       const c = document.createElement('canvas'); c.width = 256; c.height = 256;
       const ctx = c.getContext('2d');
-      ctx.fillStyle = '#1A1412'; ctx.fillRect(0, 0, 256, 256);
-      ctx.strokeStyle = '#4A1D13'; ctx.lineWidth = 4;
-      for (let i = 0; i < 8; i++) {
+      ctx.fillStyle = '#0F0C0B'; ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#5E1005'; ctx.lineWidth = 5;
+      for (let i = 0; i < 9; i++) {
         ctx.beginPath();
         ctx.moveTo(Math.random() * 256, Math.random() * 256);
         ctx.lineTo(Math.random() * 256, Math.random() * 256);
