@@ -12,6 +12,8 @@ body,
 html {
   width: 100%;
   height: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   background-color: #2c1a0e;
   /* 周囲は落ち着いたウッド調 */
@@ -26,6 +28,8 @@ html {
   max-width: 480px;
   /* スマホ縦画面の黄金比率 */
   height: 100%;
+  height: 100vh;
+  height: 100dvh;
   max-height: 900px;
   background: linear-gradient(to bottom, #FFF8E7 0%, #FFE9C2 100%);
   overflow: hidden;
@@ -419,4 +423,31 @@ html {
 
 .sound-toggle-btn:active {
   transform: scale(0.92);
+}
+
+/* ローディング中ボタン */
+.main-btn.loading {
+  background: #A08C7D !important;
+  border-bottom-color: #6D5B4F !important;
+  cursor: wait;
+  box-shadow: none;
+  filter: none !important;
+  opacity: 0.9;
+}
+
+/* 画面上デバッグエラートースト（万が一のエラー検知用） */
+#debug-toast {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  background: rgba(220, 38, 38, 0.92);
+  color: #FFF;
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  z-index: 9999;
+  display: none;
+  word-break: break-all;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }

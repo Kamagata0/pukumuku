@@ -3,6 +3,16 @@
 // パン工房プクムク 公式ゲーム (c) パン工房プクムク
 // ============================================================
 
+// 万が一のスマホ等での未補足エラーを検知
+window.addEventListener('error', (e) => {
+  console.error("Global Error:", e.message, e.filename, e.lineno);
+  const toast = document.getElementById('debug-toast');
+  if (toast) {
+    toast.innerText = `⚠️ 読込エラー: ${e.message}`;
+    toast.style.display = 'block';
+  }
+});
+
 // --- 1. サウンドシステム (Web Audio API: 100%著作権フリー自作) ---
 // 音階周波数テーブル
 const NOTE = {
@@ -82,25 +92,31 @@ class SoundSystem {
   }
 
   init() {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      this.ctx = new AudioCtx();
+    try {
+      if (!this.ctx) {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
 
-      this.masterGain = this.ctx.createGain();
-      this.masterGain.connect(this.ctx.destination);
+          this.masterGain = this.ctx.createGain();
+          this.masterGain.connect(this.ctx.destination);
 
-      // BGMチャンネル
-      this.bgmGain = this.ctx.createGain();
-      this.bgmGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
-      this.bgmGain.connect(this.masterGain);
+          // BGMチャンネル
+          this.bgmGain = this.ctx.createGain();
+          this.bgmGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+          this.bgmGain.connect(this.masterGain);
 
-      // 効果音チャンネル
-      this.seGain = this.ctx.createGain();
-      this.seGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-      this.seGain.connect(this.masterGain);
-    }
-    if (this.ctx.state === 'suspended') {
-      this.ctx.resume();
+          // 効果音チャンネル
+          this.seGain = this.ctx.createGain();
+          this.seGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+          this.seGain.connect(this.masterGain);
+        }
+      }
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+    } catch (e) {
+      console.warn("AudioContext init error:", e);
     }
   }
 
@@ -382,21 +398,43 @@ let gameState = {
 const canvas = document.getElementById('webgl-canvas');
 const container = document.getElementById('game-container');
 
+// 初期画面サイズの安全な取得（スマホ初回ロード時の 0px / NaN バグ防止）
+const getValidContainerSize = () => {
+  const w = (container && container.clientWidth > 0) ? container.clientWidth : (window.innerWidth || 360);
+  const h = (container && container.clientHeight > 0) ? container.clientHeight : (window.innerHeight || 640);
+  return { w, h };
+};
+
+const initialSize = getValidContainerSize();
+
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xFFF3DE); // 優しいパン屋の店内カラー
 scene.fog = new THREE.Fog(0xFFF3DE, 12, 30);
 
 // カメラ: 正面アングル（純くんとお空から降るパンが画面全体で見渡せるベストビュー）
-const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(50, initialSize.w / initialSize.h, 0.1, 100);
 camera.position.set(0, 1.45, 4.3);
 camera.lookAt(0, 1.35, 0);
 
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
-renderer.setSize(container.clientWidth, container.clientHeight);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, powerPreference: 'default' });
+renderer.setSize(initialSize.w, initialSize.h);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
+
+function resizeRenderer() {
+  const { w, h } = getValidContainerSize();
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w, h);
+}
+
+// 読み込み直後や画面回転時にも確実にリサイズ実行
+window.addEventListener('resize', resizeRenderer);
+window.addEventListener('orientationchange', () => setTimeout(resizeRenderer, 150));
+window.addEventListener('DOMContentLoaded', () => setTimeout(resizeRenderer, 100));
+window.addEventListener('load', () => setTimeout(resizeRenderer, 300));
 
 // 温かい照明（白飛びを抑え、鮮やかな壁画を引き立てる）
 const ambientLight = new THREE.AmbientLight(0xFFF2DE, 0.78);
@@ -427,8 +465,33 @@ rug.position.set(0, 0.01, 0);
 rug.receiveShadow = true;
 scene.add(rug);
 
-// --- 4. モデル読み込み ---
-const loader = new THREE.GLTFLoader();
+// --- 4. モデル読み込みマネージャー ---
+const loadingManager = new THREE.LoadingManager();
+const startBtn = document.getElementById('start-btn');
+let isAssetsLoaded = false;
+
+if (startBtn) {
+  startBtn.classList.add('loading');
+  startBtn.innerText = '🥖 準備中...';
+}
+
+loadingManager.onProgress = (url, itemsLoaded, itemsTotal) => {
+  const percent = Math.floor((itemsLoaded / itemsTotal) * 100);
+  if (startBtn && !isAssetsLoaded) {
+    startBtn.innerText = `🥖 準備中 (${percent}%)...`;
+  }
+};
+
+loadingManager.onLoad = () => {
+  isAssetsLoaded = true;
+  if (startBtn) {
+    startBtn.classList.remove('loading');
+    startBtn.innerText = 'パンを焼く！（スタート）';
+  }
+  resizeRenderer();
+};
+
+const loader = new THREE.GLTFLoader(loadingManager);
 const junKunGroup = new THREE.Group();
 scene.add(junKunGroup);
 
@@ -436,7 +499,7 @@ let junKun = null;
 let mixer = null;
 let animations = {};
 let currentAction = null;
-const CACHE_BUST = 'v=20260925_2';
+const CACHE_BUST = 'v=20260925_3';
 
 const breadTemplates = {};
 const activeBreads = [];
@@ -1578,32 +1641,52 @@ function saveAndRenderRanking(currentScore) {
   }
 }
 
-// イベントリスナー
-document.getElementById('start-btn').addEventListener('click', startGame);
-document.getElementById('restart-btn').addEventListener('click', startGame);
-
-const soundBtn = document.getElementById('sound-btn');
-if (soundBtn) {
-  soundBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    const muted = sounds.toggleMute();
-    soundBtn.innerText = muted ? '🔇' : '🔊';
+// --- ボタンイベントの確実なバインド（click + touchend スマホ完全対応） ---
+function bindButtonAction(id, callback) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('click', (e) => {
+    e.preventDefault();
+    callback(e);
+  });
+  el.addEventListener('touchend', (e) => {
+    e.preventDefault();
+    callback(e);
   });
 }
 
-// ユーザー操作時のオーディオアンロック
-window.addEventListener('pointerdown', () => {
-  if (sounds && sounds.ctx && sounds.ctx.state === 'suspended') {
-    sounds.ctx.resume();
+bindButtonAction('start-btn', () => {
+  if (!isAssetsLoaded) {
+    if (startBtn) {
+      startBtn.innerText = '⏳ 準備中...少々お待ちください';
+    }
+    loadingManager.onLoad = () => {
+      isAssetsLoaded = true;
+      startGame();
+    };
+    return;
   }
-}, { once: true });
-
-// リサイズ対応
-window.addEventListener('resize', () => {
-  const width = container.clientWidth;
-  const height = container.clientHeight;
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  renderer.setSize(width, height);
+  startGame();
 });
+
+bindButtonAction('restart-btn', () => startGame());
+
+const soundBtn = document.getElementById('sound-btn');
+if (soundBtn) {
+  const handleSoundToggle = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const muted = sounds.toggleMute();
+    soundBtn.innerText = muted ? '🔇' : '🔊';
+  };
+  soundBtn.addEventListener('click', handleSoundToggle);
+  soundBtn.addEventListener('touchend', handleSoundToggle);
+}
+
+// ユーザー初回操作での確実なオーディオアンロック（iOS/Android対応）
+const unlockAudio = () => {
+  sounds.init();
+};
+window.addEventListener('pointerdown', unlockAudio, { once: true });
+window.addEventListener('touchstart', unlockAudio, { once: true });
 
