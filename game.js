@@ -4,81 +4,332 @@
 // ============================================================
 
 // --- 1. サウンドシステム (Web Audio API: 100%著作権フリー自作) ---
+// 音階周波数テーブル
+const NOTE = {
+  REST: 0,
+  G2: 98.00, A2: 110.00, B2: 123.47,
+  C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.00, A3: 220.00, B3: 246.94,
+  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.00, A4: 440.00, B4: 493.88,
+  C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99, A5: 880.00, B5: 987.77,
+  C6: 1046.50, D6: 1174.66, E6: 1318.51, F6: 1396.91, G6: 1567.98, A6: 1760.00, C7: 2093.00
+};
+
+// プクムクパン屋のオリジナルテーマ曲（64ステップ / 8小節ループ）
+const BGM_MELODY = [
+  // 1: C
+  NOTE.E5, NOTE.REST, NOTE.G5, NOTE.REST, NOTE.C6, NOTE.REST, NOTE.B5, NOTE.REST,
+  NOTE.A5, NOTE.REST, NOTE.G5, NOTE.REST, NOTE.E5, NOTE.REST, NOTE.G5, NOTE.REST,
+  // 2: G
+  NOTE.D5, NOTE.REST, NOTE.G4, NOTE.REST, NOTE.B4, NOTE.REST, NOTE.D5, NOTE.REST,
+  NOTE.REST, NOTE.REST, NOTE.B4, NOTE.REST, NOTE.D5, NOTE.REST, NOTE.REST, NOTE.REST,
+  // 3: Am
+  NOTE.C5, NOTE.REST, NOTE.E5, NOTE.REST, NOTE.A5, NOTE.REST, NOTE.G5, NOTE.REST,
+  NOTE.E5, NOTE.REST, NOTE.C5, NOTE.REST, NOTE.D5, NOTE.REST, NOTE.E5, NOTE.REST,
+  // 4: F
+  NOTE.F5, NOTE.REST, NOTE.A5, NOTE.REST, NOTE.C6, NOTE.REST, NOTE.A5, NOTE.REST,
+  NOTE.G5, NOTE.REST, NOTE.F5, NOTE.REST, NOTE.E5, NOTE.REST, NOTE.D5, NOTE.REST,
+  // 5: C
+  NOTE.E5, NOTE.REST, NOTE.G5, NOTE.REST, NOTE.C6, NOTE.REST, NOTE.E6, NOTE.REST,
+  NOTE.D6, NOTE.REST, NOTE.C6, NOTE.REST, NOTE.B5, NOTE.REST, NOTE.G5, NOTE.REST,
+  // 6: F
+  NOTE.A5, NOTE.REST, NOTE.C6, NOTE.REST, NOTE.B5, NOTE.REST, NOTE.A5, NOTE.REST,
+  NOTE.G5, NOTE.REST, NOTE.E5, NOTE.REST, NOTE.F5, NOTE.REST, NOTE.G5, NOTE.REST,
+  // 7: Dm7
+  NOTE.F5, NOTE.REST, NOTE.A5, NOTE.REST, NOTE.G5, NOTE.REST, NOTE.F5, NOTE.REST,
+  NOTE.E5, NOTE.REST, NOTE.D5, NOTE.REST, NOTE.C5, NOTE.REST, NOTE.D5, NOTE.REST,
+  // 8: G7 -> C
+  NOTE.E5, NOTE.REST, NOTE.G5, NOTE.REST, NOTE.D5, NOTE.REST, NOTE.G5, NOTE.REST,
+  NOTE.C5, NOTE.REST, NOTE.REST, NOTE.REST, NOTE.REST, NOTE.REST, NOTE.REST, NOTE.REST
+];
+
+// 各小節のベース音 (拍 0, 4, 8, 12)
+const BGM_BASS = [
+  [NOTE.C3, NOTE.E3, NOTE.G3, NOTE.E3], // C
+  [NOTE.G3, NOTE.B2, NOTE.D3, NOTE.B2], // G
+  [NOTE.A3, NOTE.C3, NOTE.E3, NOTE.C3], // Am
+  [NOTE.F3, NOTE.A2, NOTE.C3, NOTE.A2], // F
+  [NOTE.C3, NOTE.G3, NOTE.E3, NOTE.G3], // C
+  [NOTE.F3, NOTE.C3, NOTE.A2, NOTE.C3], // F
+  [NOTE.D3, NOTE.F3, NOTE.A2, NOTE.F3], // Dm
+  [NOTE.G3, NOTE.D3, NOTE.B2, NOTE.G3]  // G7
+];
+
+// 各小節の裏拍和音コード (トイピアノ/マリンバ)
+const BGM_CHORDS = [
+  [NOTE.E4, NOTE.G4, NOTE.C5], // C
+  [NOTE.D4, NOTE.G4, NOTE.B4], // G
+  [NOTE.C4, NOTE.E4, NOTE.A4], // Am
+  [NOTE.C4, NOTE.F4, NOTE.A4], // F
+  [NOTE.E4, NOTE.G4, NOTE.C5], // C
+  [NOTE.C4, NOTE.F4, NOTE.A4], // F
+  [NOTE.D4, NOTE.F4, NOTE.A4], // Dm
+  [NOTE.D4, NOTE.F4, NOTE.G4]  // G7
+];
+
+// --- 1. サウンドシステム (Web Audio API: 100%著作権フリー自作BGM＆SE) ---
 class SoundSystem {
   constructor() {
     this.ctx = null;
+    this.masterGain = null;
+    this.bgmGain = null;
+    this.seGain = null;
+    this.isMuted = false;
+    this.bgmPlaying = false;
+    this.bgmStep = 0;
+    this.nextNoteTime = 0;
+    this.scheduleTimer = null;
+    this.isFever = false;
   }
 
   init() {
     if (!this.ctx) {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AudioCtx();
+
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.connect(this.ctx.destination);
+
+      // BGMチャンネル
+      this.bgmGain = this.ctx.createGain();
+      this.bgmGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+      this.bgmGain.connect(this.masterGain);
+
+      // 効果音チャンネル
+      this.seGain = this.ctx.createGain();
+      this.seGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+      this.seGain.connect(this.masterGain);
     }
     if (this.ctx.state === 'suspended') {
       this.ctx.resume();
     }
   }
 
-  playTone(freq, type = 'sine', duration = 0.15, gainVal = 0.2) {
-    if (!this.ctx) return;
+  toggleMute() {
+    this.init();
+    this.isMuted = !this.isMuted;
+    if (this.masterGain) {
+      this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 1, this.ctx.currentTime);
+    }
+    return this.isMuted;
+  }
+
+  // --- BGM シーケンサー ---
+  startBGM() {
+    this.init();
+    if (this.bgmPlaying) return;
+    this.bgmPlaying = true;
+    this.bgmStep = 0;
+    this.nextNoteTime = this.ctx.currentTime + 0.05;
+    if (this.bgmGain) {
+      this.bgmGain.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.bgmGain.gain.setValueAtTime(0.22, this.ctx.currentTime);
+    }
+    this.scheduleTimer = setInterval(() => this.tickBGM(), 30);
+  }
+
+  stopBGM(fadeDuration = 0.6) {
+    if (!this.bgmPlaying) return;
+    this.bgmPlaying = false;
+    if (this.scheduleTimer) {
+      clearInterval(this.scheduleTimer);
+      this.scheduleTimer = null;
+    }
+    if (this.bgmGain && this.ctx) {
+      this.bgmGain.gain.setValueAtTime(this.bgmGain.gain.value, this.ctx.currentTime);
+      this.bgmGain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + fadeDuration);
+    }
+  }
+
+  setFever(fever) {
+    this.isFever = fever;
+  }
+
+  tickBGM() {
+    if (!this.bgmPlaying || !this.ctx) return;
+    const bpm = this.isFever ? 144 : 122;
+    const stepDuration = 60 / bpm / 4; // 16分音符の長さ
+
+    while (this.nextNoteTime < this.ctx.currentTime + 0.12) {
+      this.scheduleStep(this.bgmStep, this.nextNoteTime, stepDuration);
+      this.nextNoteTime += stepDuration;
+      this.bgmStep = (this.bgmStep + 1) % 64;
+    }
+  }
+
+  scheduleStep(step, time, dur) {
+    const measure = Math.floor(step / 16);
+    const beat16 = step % 16;
+    const beatIndex = Math.floor(beat16 / 4);
+
+    // 1. ベース (拍の頭 0, 4, 8, 12 でポヨンと弾む)
+    if (beat16 % 4 === 0) {
+      const bassNote = BGM_BASS[measure][beatIndex];
+      if (bassNote) {
+        this.playToneAt(bassNote, 'sine', dur * 2.2, 0.28, time, this.bgmGain);
+      }
+    }
+
+    // 2. 伴奏和音 (拍の裏 step % 4 === 2 で軽快にポン)
+    if (beat16 % 4 === 2) {
+      const chord = BGM_CHORDS[measure];
+      chord.forEach((note) => {
+        this.playToneAt(note, 'triangle', dur * 1.5, 0.10, time, this.bgmGain);
+      });
+    }
+
+    // 3. ドラム/パーカッション
+    if (beat16 % 4 === 0) {
+      // バスドラム風の低音タップ
+      this.playToneAt(65, 'sine', 0.06, 0.18, time, this.bgmGain);
+    } else if (beat16 === 4 || beat16 === 12) {
+      // スネア代わりのカチッ
+      this.playNoiseClick(time, 0.05, 0.08);
+    } else if (beat16 % 2 === 1) {
+      // 小気味よい裏拍ハイハット
+      this.playNoiseClick(time, 0.02, 0.04);
+    }
+
+    // 4. メロディ (トイピアノ/マリンバ風)
+    const melNote = BGM_MELODY[step];
+    if (melNote && melNote > 0) {
+      this.playToneAt(melNote, 'triangle', dur * 1.6, 0.22, time, this.bgmGain);
+      // かすかに倍音を重ねてふくよかな温かみを付加
+      this.playToneAt(melNote * 2, 'sine', dur * 0.8, 0.08, time, this.bgmGain);
+    }
+
+    // 5. フィーバー時のキラキラ高音アルペジオ
+    if (this.isFever && step % 2 === 0) {
+      const feverPitches = [NOTE.C6, NOTE.E6, NOTE.G6, NOTE.C7];
+      const feverNote = feverPitches[(step / 2) % feverPitches.length];
+      this.playToneAt(feverNote, 'sine', dur * 1.2, 0.14, time, this.bgmGain);
+    }
+  }
+
+  playToneAt(freq, type, duration, gainVal, time, targetGain) {
+    if (!this.ctx || freq <= 0) return;
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = type;
-    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+    osc.frequency.setValueAtTime(freq, time);
 
-    gain.gain.setValueAtTime(gainVal, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+    gain.gain.setValueAtTime(gainVal, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
 
     osc.connect(gain);
-    gain.connect(this.ctx.destination);
+    gain.connect(targetGain || this.seGain || this.masterGain);
 
-    osc.start();
-    osc.stop(this.ctx.currentTime + duration);
+    osc.start(time);
+    osc.stop(time + duration);
   }
 
-  // 通常パンキャッチ音 (かわいいマリンバ風)
-  playCatch() {
+  playNoiseClick(time, duration, gainVal) {
     if (!this.ctx) return;
-    const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
-    const f = notes[Math.floor(Math.random() * notes.length)];
-    this.playTone(f, 'sine', 0.18, 0.25);
-    setTimeout(() => this.playTone(f * 1.5, 'triangle', 0.15, 0.15), 50);
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1200, time);
+    osc.frequency.exponentialRampToValueAtTime(100, time + duration);
+
+    gain.gain.setValueAtTime(gainVal, time);
+    gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+
+    osc.connect(gain);
+    gain.connect(this.bgmGain || this.masterGain);
+
+    osc.start(time);
+    osc.stop(time + duration);
   }
 
-  // 金のパンキャッチ音 (キラキラファンファーレ)
+  playTone(freq, type = 'sine', duration = 0.15, gainVal = 0.2) {
+    if (!this.ctx) return;
+    this.playToneAt(freq, type, duration, gainVal, this.ctx.currentTime, this.seGain);
+  }
+
+  // --- 効果音（SE）群 ---
+  // パンキャッチ音 (コンボ数で音階が上がる！ド・レ・ミ・ファ・ソ・ラ・シ・高ド♪)
+  playCatch(combo = 0) {
+    if (!this.ctx) return;
+    const scale = [NOTE.C5, NOTE.D5, NOTE.E5, NOTE.F5, NOTE.G5, NOTE.A5, NOTE.B5, NOTE.C6, NOTE.D6, NOTE.E6];
+    const pitch = scale[Math.min(combo, scale.length - 1)];
+    // はじけるようなマリンバタッチ
+    this.playTone(pitch, 'triangle', 0.18, 0.32);
+    setTimeout(() => {
+      this.playTone(pitch * 2, 'sine', 0.12, 0.15);
+    }, 28);
+  }
+
+  // 金のパンキャッチ音 (キラキラスパークル・ハープ音)
   playGoldCatch() {
     if (!this.ctx) return;
-    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 'triangle', 0.25, 0.3), i * 60);
+    const notes = [NOTE.C5, NOTE.E5, NOTE.G5, NOTE.C6, NOTE.E6, NOTE.G6];
+    notes.forEach((freq, i) => {
+      setTimeout(() => this.playTone(freq, 'sine', 0.25, 0.26), i * 40);
     });
   }
 
-  // コゲパン (コミカルな「あちゃ〜」音)
+  // コゲパンキャッチ音 (コミカルな「あちゃ〜！」「ブブーッ！」)
   playBurnt() {
     if (!this.ctx) return;
-    this.playTone(180, 'sawtooth', 0.2, 0.15);
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    const now = this.ctx.currentTime;
+    osc.frequency.setValueAtTime(240, now);
+    osc.frequency.exponentialRampToValueAtTime(75, now + 0.35);
+
+    gain.gain.setValueAtTime(0.32, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc.connect(gain);
+    gain.connect(this.seGain || this.masterGain);
+
+    osc.start(now);
+    osc.stop(now + 0.35);
   }
 
-  // オーブンチーン音 (パンタワー収納ボーナス)
-  playOvenDing() {
+  // 純くんの手振り音 (チリンチリン鈴の音)
+  playWave() {
     if (!this.ctx) return;
-    this.playTone(1318.51, 'sine', 0.6, 0.35); // E6
-    setTimeout(() => this.playTone(2637.02, 'sine', 0.8, 0.2), 30);
-  }
-
-  // フィーバー突入音
-  playFever() {
-    if (!this.ctx) return;
-    [440, 554.37, 659.25, 880].forEach((freq, i) => {
-      setTimeout(() => this.playTone(freq, 'square', 0.2, 0.15), i * 80);
+    [1760, 2637, 3520].forEach((f, i) => {
+      setTimeout(() => this.playTone(f, 'sine', 0.14, 0.18), i * 80);
     });
   }
 
-  // 終了歓声
+  // オーブンチーン音 (パンタワー収納ボーナス ＆ スタート合図)
+  playOvenDing() {
+    if (!this.ctx) return;
+    this.playTone(1318.51, 'sine', 0.8, 0.40); // E6
+    setTimeout(() => this.playTone(2637.02, 'sine', 0.9, 0.25), 30);
+  }
+
+  // フィーバー突入ファンファーレ
+  playFever() {
+    if (!this.ctx) return;
+    const fan = [NOTE.G4, NOTE.C5, NOTE.E5, NOTE.G5, NOTE.C6];
+    fan.forEach((freq, i) => {
+      setTimeout(() => this.playTone(freq, 'triangle', 0.24, 0.30), i * 75);
+    });
+  }
+
+  // ゲーム終了（ホイッスル＆ジングル）
   playGameEnd() {
     if (!this.ctx) return;
-    [523, 659, 783, 1046].forEach((f, i) => {
-      setTimeout(() => this.playTone(f, 'triangle', 0.5, 0.25), i * 120);
+    // ピーッ！ピピーッ！
+    this.playTone(1760, 'sine', 0.28, 0.32);
+    setTimeout(() => this.playTone(1760, 'sine', 0.42, 0.32), 320);
+    // 優しいジングル
+    setTimeout(() => {
+      [NOTE.C5, NOTE.E5, NOTE.G5, NOTE.C6].forEach((f, i) => {
+        setTimeout(() => this.playTone(f, 'triangle', 0.4, 0.25), i * 110);
+      });
+    }, 650);
+  }
+
+  // お辞儀時の可愛い効果音
+  playBow() {
+    if (!this.ctx) return;
+    [NOTE.G5, NOTE.E5, NOTE.C5].forEach((f, i) => {
+      setTimeout(() => this.playTone(f, 'sine', 0.25, 0.22), i * 90);
     });
   }
 }
@@ -918,6 +1169,7 @@ function animate() {
         gameState.feverTimer -= delta;
         if (gameState.feverTimer <= 0) {
           gameState.isFever = false;
+          sounds.setFever(false);
         }
       }
 
@@ -927,6 +1179,7 @@ function animate() {
 
     // 純くんの移動（ターゲットXへスムーズに補間）
     const prevX = gameState.playerX;
+    const diff = gameState.targetX - gameState.playerX;
     const moveSpd = gameState.isOpening ? 1.7 : (gameState.isEnding ? 2.4 : GAME_CONFIG.moveSpeed);
     gameState.playerX += diff * Math.min(1.0, moveSpd * delta);
 
@@ -964,6 +1217,7 @@ function animate() {
             gameState.targetX = 0;
             junKunGroup.position.x = 0;
             junKunGroup.rotation.y = 0;
+            sounds.playWave();
             if (animations['Wave']) {
               playAnimation('Wave', 0.2, false);
             }
@@ -984,6 +1238,7 @@ function animate() {
                 headerUI.style.opacity = '1';
               }
               sounds.playOvenDing();
+              sounds.startBGM();
               showScorePopup(container.clientWidth * 0.5 - 60, container.clientHeight * 0.42, "🍞 スタート!!", "#FF3D00");
 
               setTimeout(() => {
@@ -1002,6 +1257,7 @@ function animate() {
           gameState.targetX = 0;
           junKunGroup.position.x = 0;
           junKunGroup.rotation.y = 0;
+          sounds.playBow();
           if (animations['Bow']) {
             playAnimation('Bow', 0.25, false);
           } else {
@@ -1069,6 +1325,7 @@ function animate() {
           if (b.type === 'bread_burnt') {
             // お邪魔コゲパン：-100点、コンボリセット、フィーバー終了
             sounds.playBurnt();
+            sounds.setFever(false);
             gameState.score = Math.max(0, gameState.score - 100);
             updateScoreUI();
             showScorePopup(screenX - 45, screenY, "⚠️ コゲパン! -¥100", "#D50000");
@@ -1082,7 +1339,7 @@ function animate() {
             gameState.combo++;
             addBreadToTower(b.type);
           } else {
-            sounds.playCatch();
+            sounds.playCatch(gameState.combo);
             gameState.score += b.def.score;
             updateScoreUI();
             showScorePopup(screenX - 30, screenY, `+¥${b.def.score}`, "#D34600");
@@ -1095,6 +1352,7 @@ function animate() {
             gameState.isFever = true;
             gameState.feverTimer = 8.0;
             sounds.playFever();
+            sounds.setFever(true);
             showScorePopup(container.clientWidth * 0.5 - 70, container.clientHeight * 0.35, "🔥 ほかほかフィーバー!!", "#FF3D00");
           }
 
@@ -1184,6 +1442,7 @@ function endGame() {
   gameState.isRunning = false;
   gameState.isEnding = true;
   gameState.isBowing = false;
+  sounds.stopBGM(0.8);
   sounds.playGameEnd();
 
   // 残りのタワーもボーナス換算
@@ -1288,6 +1547,22 @@ function saveAndRenderRanking(currentScore) {
 // イベントリスナー
 document.getElementById('start-btn').addEventListener('click', startGame);
 document.getElementById('restart-btn').addEventListener('click', startGame);
+
+const soundBtn = document.getElementById('sound-btn');
+if (soundBtn) {
+  soundBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const muted = sounds.toggleMute();
+    soundBtn.innerText = muted ? '🔇' : '🔊';
+  });
+}
+
+// ユーザー操作時のオーディオアンロック
+window.addEventListener('pointerdown', () => {
+  if (sounds && sounds.ctx && sounds.ctx.state === 'suspended') {
+    sounds.ctx.resume();
+  }
+}, { once: true });
 
 // リサイズ対応
 window.addEventListener('resize', () => {
