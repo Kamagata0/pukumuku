@@ -89,17 +89,20 @@ const sounds = new SoundSystem();
 const GAME_CONFIG = {
   duration: 45, // 45秒
   moveSpeed: 18.0,
-  stageWidth: 3.7, // 画面端でも見切れない安全な移動可能範囲（±1.85）
-  catchRadius: 0.85, // キャラクター縮小に合わせた適正判定
-  maxTower: 5, // パンタワーの最大数 (これに達するとボーナス収納)
+  stageWidth: 3.6, // 画面端でも見切れない安全な移動可能範囲（±1.8）
+  catchRadius: 0.50, // キャラクター縮小(0.58)に合わせた的確な難易度判定
+  maxTower: 5, // パンタワーの最大数
 };
 
 const BREAD_TYPES = {
-  bread_loaf: { name: "山型食パン", score: 100, scale: 0.42, speed: 3.5, prob: 0.35 },
-  bread_croissant: { name: "クロワッサン", score: 200, scale: 0.42, speed: 4.0, prob: 0.28 },
-  bread_melon: { name: "メロンパン", score: 300, scale: 0.42, speed: 3.8, prob: 0.22 },
-  bread_gold: { name: "金のプクムクパン", score: 1000, scale: 0.42, speed: 4.5, prob: 0.07 },
-  bread_burnt: { name: "コゲパン", score: 0, scale: 0.42, speed: 4.2, prob: 0.08 }
+  bread_loaf: { name: "山型食パン", score: 100, scale: 0.28, speed: 3.5, prob: 0.18 },
+  bread_croissant: { name: "クロワッサン", score: 200, scale: 0.28, speed: 4.0, prob: 0.16 },
+  bread_melon: { name: "メロンパン", score: 300, scale: 0.28, speed: 3.8, prob: 0.15 },
+  bread_cornet: { name: "チョココロネ", score: 250, scale: 0.28, speed: 3.9, prob: 0.14 },
+  bread_baguette: { name: "フランスパン", score: 150, scale: 0.28, speed: 4.2, prob: 0.14 },
+  bread_anpan: { name: "桜あんぱん", score: 180, scale: 0.28, speed: 3.7, prob: 0.11 },
+  bread_gold: { name: "金のプクムクパン", score: 1000, scale: 0.28, speed: 4.8, prob: 0.04 },
+  bread_burnt: { name: "コゲパン", score: -100, scale: 0.28, speed: 4.4, prob: 0.08 }
 };
 
 let gameState = {
@@ -109,7 +112,16 @@ let gameState = {
   combo: 0,
   isFever: false,
   feverTimer: 0,
-  breadCount: { bread_loaf: 0, bread_croissant: 0, bread_melon: 0, bread_gold: 0, bread_burnt: 0 },
+  breadCount: {
+    bread_loaf: 0,
+    bread_croissant: 0,
+    bread_melon: 0,
+    bread_cornet: 0,
+    bread_baguette: 0,
+    bread_anpan: 0,
+    bread_gold: 0,
+    bread_burnt: 0
+  },
   playerX: 0,
   targetX: 0,
   towerBreads: []
@@ -179,32 +191,38 @@ const breadTemplates = {};
 const activeBreads = [];
 
 // --- リアル画像テクスチャ生成システム (CanvasTexture) ---
-// 実店舗の写真そっくりの「明るい黄色 ＋ 青とオレンジのポップな壁画」
+// 1. 実店舗の写真そっくりの「温かみのある黄色 ＋ 青とオレンジのポップな壁画」
 function createShopWallTexture() {
   const c = document.createElement('canvas');
   c.width = 512; c.height = 512;
   const ctx = c.getContext('2d');
-  // 実店舗写真と同じ明るい黄色ベース
-  ctx.fillStyle = '#FFEB3B';
+  ctx.fillStyle = '#FFE54C';
   ctx.fillRect(0, 0, 512, 512);
 
+  // レンガ・漆喰調のテクスチャライン
+  ctx.strokeStyle = '#FAD02C';
+  ctx.lineWidth = 3;
+  for (let y = 0; y < 512; y += 32) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke();
+  }
+
   // 鮮やかなスカイブルーのキノコ・パン模様パターン
-  ctx.fillStyle = '#29B6F6';
-  for (let y = 30; y < 512; y += 90) {
-    for (let x = (y % 180 === 30 ? 30 : 75); x < 512; x += 100) {
+  ctx.fillStyle = '#1E90FF';
+  for (let y = 40; y < 512; y += 90) {
+    for (let x = (y % 180 === 40 ? 35 : 80); x < 512; x += 100) {
       ctx.beginPath();
-      ctx.arc(x, y, 26, Math.PI, 0);
-      ctx.lineTo(x + 14, y + 28);
-      ctx.lineTo(x - 14, y + 28);
+      ctx.arc(x, y, 24, Math.PI, 0);
+      ctx.lineTo(x + 14, y + 26);
+      ctx.lineTo(x - 14, y + 26);
       ctx.closePath();
       ctx.fill();
     }
   }
 
   // ポップなオレンジのアクセント柄
-  ctx.fillStyle = '#FF7043';
-  for (let y = 75; y < 512; y += 90) {
-    for (let x = (y % 180 === 75 ? 30 : 80); x < 512; x += 100) {
+  ctx.fillStyle = '#FF5722';
+  for (let y = 85; y < 512; y += 90) {
+    for (let x = (y % 180 === 85 ? 35 : 85); x < 512; x += 100) {
       ctx.beginPath();
       ctx.arc(x, y, 16, 0, Math.PI * 2);
       ctx.fill();
@@ -217,13 +235,56 @@ function createShopWallTexture() {
   return tex;
 }
 
+// 2. 木製ショーケース・枠組み用 木目テクスチャ
+function createWoodTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#8D4925';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.strokeStyle = '#6E3414';
+  ctx.lineWidth = 4;
+  for (let y = 0; y < 256; y += 12) {
+    ctx.beginPath();
+    ctx.moveTo(0, y + (Math.sin(y * 0.2) * 4));
+    ctx.lineTo(256, y + (Math.cos(y * 0.2) * 4));
+    ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// 3. 看板「🍞 パン工房 PUKUMUKU 🥖」オーニングテクスチャ
+function createSignboardTexture() {
+  const c = document.createElement('canvas');
+  c.width = 512; c.height = 128;
+  const ctx = c.getContext('2d');
+  // 鮮やかなプクムクレッド
+  ctx.fillStyle = '#E52417';
+  ctx.fillRect(0, 0, 512, 128);
+  // ゴールド枠
+  ctx.strokeStyle = '#FFE082';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(8, 8, 496, 112);
+  // 文字影
+  ctx.fillStyle = '#8E140B';
+  ctx.font = '900 34px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🍞 PANKOUBOU PUKUMUKU 🥐', 258, 66);
+  // 文字白
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillText('🍞 PANKOUBOU PUKUMUKU 🥐', 256, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+// 4. メロンパンの焼き色＆格子
 function createMelonBreadTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#E8C15A';
+  ctx.fillStyle = '#EED279';
   ctx.fillRect(0, 0, 256, 256);
-  ctx.strokeStyle = '#9E741A';
+  ctx.strokeStyle = '#936916';
   ctx.lineWidth = 10;
   for (let i = -256; i < 512; i += 40) {
     ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 256, 256); ctx.stroke();
@@ -232,70 +293,162 @@ function createMelonBreadTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// 5. クロワッサンの香ばしいパイ層
 function createCroissantTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#D66518';
+  ctx.fillStyle = '#D35D15';
   ctx.fillRect(0, 0, 256, 256);
-  for (let y = 0; y < 256; y += 24) {
-    ctx.fillStyle = (y % 48 === 0) ? '#F5A845' : '#8B3205';
-    ctx.fillRect(0, y, 256, 12);
+  for (let y = 0; y < 256; y += 20) {
+    ctx.fillStyle = (y % 40 === 0) ? '#FFA23A' : '#7D2E04';
+    ctx.fillRect(0, y, 256, 10);
   }
   return new THREE.CanvasTexture(c);
 }
 
+// 6. 山型食パンの耳と白断面
 function createLoafBreadTexture() {
   const c = document.createElement('canvas');
   c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#FFF8EE';
   ctx.fillRect(0, 0, 256, 256);
-  ctx.lineWidth = 28;
-  ctx.strokeStyle = '#8B4210';
-  ctx.strokeRect(14, 14, 228, 228);
-  ctx.fillStyle = '#783508';
-  ctx.fillRect(0, 0, 256, 70);
+  ctx.lineWidth = 32;
+  ctx.strokeStyle = '#823807';
+  ctx.strokeRect(16, 16, 224, 224);
+  ctx.fillStyle = '#6E2A03';
+  ctx.fillRect(0, 0, 256, 75);
   return new THREE.CanvasTexture(c);
 }
 
-function createSignboardTexture() {
+// 7. チョココロネの渦巻き＆濃厚チョコ
+function createCornetTexture() {
   const c = document.createElement('canvas');
-  c.width = 512; c.height = 128;
+  c.width = 256; c.height = 256;
   const ctx = c.getContext('2d');
-  ctx.fillStyle = '#E52B18';
-  ctx.fillRect(0, 0, 512, 128);
-  ctx.strokeStyle = '#FDD835';
-  ctx.lineWidth = 8;
-  ctx.strokeRect(6, 6, 500, 116);
-  ctx.fillStyle = '#FFFFFF';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('PANKOUBOU PUKUMUKU', 256, 64);
+  ctx.fillStyle = '#E59A44';
+  ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = '#AF6519';
+  for (let x = 0; x < 256; x += 36) {
+    ctx.fillRect(x, 0, 14, 256);
+  }
+  // 先端の濃密チョコ
+  ctx.fillStyle = '#3E1D0C';
+  ctx.beginPath();
+  ctx.arc(128, 128, 60, 0, Math.PI * 2);
+  ctx.fill();
+  return new THREE.CanvasTexture(c);
+}
+
+// 8. フランスパン（バゲット）のクープ
+function createBaguetteTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#E29742';
+  ctx.fillRect(0, 0, 256, 256);
+  // 斜めクープの切れ込み
+  ctx.fillStyle = '#FFF3D6';
+  ctx.strokeStyle = '#8B4513';
+  ctx.lineWidth = 6;
+  for (let y = 30; y < 256; y += 55) {
+    ctx.beginPath();
+    ctx.ellipse(128, y, 70, 16, Math.PI / 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// 9. 桜あんぱん（中央のへこみと黒ごま）
+function createAnpanTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#C86E20';
+  ctx.fillRect(0, 0, 256, 256);
+  // 中央の桜色・ケシの実
+  ctx.fillStyle = '#222222';
+  for (let i = 0; i < 28; i++) {
+    const rx = 128 + (Math.random() - 0.5) * 44;
+    const ry = 128 + (Math.random() - 0.5) * 44;
+    ctx.fillRect(rx, ry, 5, 5);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// 10. コゲパン（炭化・ひび割れ）
+function createBurntTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#1A1412';
+  ctx.fillRect(0, 0, 256, 256);
+  // 赤い焦げひび割れ
+  ctx.strokeStyle = '#4A1D13';
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random() * 256, Math.random() * 256);
+    ctx.lineTo(Math.random() * 256, Math.random() * 256);
+    ctx.stroke();
+  }
   return new THREE.CanvasTexture(c);
 }
 
 const shopWallTex = createShopWallTexture();
+const woodTex = createWoodTexture();
+const signTex = createSignboardTexture();
 const melonTex = createMelonBreadTexture();
 const croissantTex = createCroissantTexture();
 const loafTex = createLoafBreadTexture();
-const signTex = createSignboardTexture();
+const cornetTex = createCornetTexture();
+const baguetteTex = createBaguetteTexture();
+const anpanTex = createAnpanTexture();
+const burntTex = createBurntTexture();
 
-// 人の写っていないクリーンな「パン工房プクムク」3Dブロック建築モデル！
+// 店舗モデルの読み込み＆全パーツへの美しいテクスチャ適用！
 loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
   const shop = gltf.scene;
   shop.position.set(0, 0, -1.8);
   shop.scale.set(0.75, 0.75, 0.75);
   shop.rotation.set(0, 0, 0);
+
   shop.traverse((child) => {
     if (child.isMesh) {
       child.receiveShadow = true;
-      if (child.name.includes('Awning') || child.name.includes('plt')) {
+      const n = child.name;
+
+      if (n.includes('Wall') || n.includes('Shop_Wall')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: shopWallTex,
+          roughness: 0.65
+        });
+      } else if (n.includes('AwningText') || n.includes('Awning') || n.includes('plt')) {
         child.material = new THREE.MeshStandardMaterial({
           map: signTex,
-          color: 0xFFFFFF,
           roughness: 0.35
+        });
+      } else if (n.includes('ShowcaseFrame') || n.includes('DoorFrame') || n.includes('Shelf')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: woodTex,
+          roughness: 0.5
+        });
+      } else if (n.includes('Bread')) {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0xD37318,
+          roughness: 0.4
+        });
+      } else if (n.includes('SunFace') || n.includes('Moon')) {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0xFFCA28,
+          roughness: 0.3
+        });
+      } else if (n.includes('SunFlame')) {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0xE53935,
+          roughness: 0.4
         });
       }
     }
@@ -303,13 +456,17 @@ loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
   scene.add(shop);
 });
 
+// 純くんの木箱メッシュ参照と、地面に置く木箱
+let junBreadBox = null;
+let groundBasket = null;
+
 // 純くん（箱持ち＆上見上げ新モデル）の読み込み
 loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
   junKun = gltf.scene;
   junKun.rotation.set(0, 0, 0);
 
-  // ゲームの面白さ・難易度向上のためコンパクト化（0.72）
-  const scale = 0.72;
+  // 難易度・アクション性向上のため、純くんをコンパクト化（0.58）
+  const scale = 0.58;
   junKun.scale.set(scale, scale, scale);
   junKun.position.set(0, 0, 0);
 
@@ -317,6 +474,10 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
     if (child.isMesh) {
       child.castShadow = true;
       child.receiveShadow = true;
+      // 木箱メッシュの特定
+      if (child.name.includes('Bread') || child.name.includes('Box') || child.name.includes('Basket') || child.name.includes('立方体.004')) {
+        junBreadBox = child;
+      }
     }
   });
 
@@ -327,14 +488,15 @@ loader.load(`models/jun_kun_carry_box.glb?${CACHE_BUST}`, (gltf) => {
     animations[clip.name] = mixer.clipAction(clip);
   });
 
-  if (animations['Carry_Idle']) {
-    playAnimation('Carry_Idle');
-  } else if (Object.keys(animations).length > 0) {
-    playAnimation(Object.keys(animations)[0]);
+  // 初期画面（タイトル表示中）から、純くんがカメラに楽しそうに手を振る！
+  if (animations['Wave']) {
+    playAnimation('Wave', 0.2, true);
+  } else if (animations['Carry_Idle']) {
+    playAnimation('Carry_Idle', 0.2);
   }
 }, undefined, (err) => console.error("Error loading Jun-kun:", err));
 
-// パンモデルの読み込み (画像テクスチャを確実に適用！)
+// パンモデルの読み込み (全8種類に画像テクスチャを確実に適用！)
 Object.keys(BREAD_TYPES).forEach((key) => {
   loader.load(`models/${key}.glb?${CACHE_BUST}`, (gltf) => {
     const model = gltf.scene;
@@ -349,10 +511,16 @@ Object.keys(BREAD_TYPES).forEach((key) => {
           child.material = new THREE.MeshStandardMaterial({ map: croissantTex, roughness: 0.45 });
         } else if (key === 'bread_loaf') {
           child.material = new THREE.MeshStandardMaterial({ map: loafTex, roughness: 0.55 });
+        } else if (key === 'bread_cornet') {
+          child.material = new THREE.MeshStandardMaterial({ map: cornetTex, roughness: 0.45 });
+        } else if (key === 'bread_baguette') {
+          child.material = new THREE.MeshStandardMaterial({ map: baguetteTex, roughness: 0.5 });
+        } else if (key === 'bread_anpan') {
+          child.material = new THREE.MeshStandardMaterial({ map: anpanTex, roughness: 0.5 });
         } else if (key === 'bread_gold') {
-          child.material = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.85, roughness: 0.2 });
+          child.material = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.9, roughness: 0.15 });
         } else if (key === 'bread_burnt') {
-          child.material = new THREE.MeshStandardMaterial({ color: 0x241C18, roughness: 0.95 });
+          child.material = new THREE.MeshStandardMaterial({ map: burntTex, roughness: 0.95 });
         }
       }
     });
@@ -505,12 +673,12 @@ function addBreadToTower(typeKey) {
   if (!template) return;
 
   const towerItem = template.clone();
-  towerItem.scale.set(0.26, 0.26, 0.26);
+  towerItem.scale.set(0.18, 0.18, 0.18);
 
   const idx = gameState.towerBreads.length;
   // 純くんが抱える木箱の中にすっぽり収まり、順番に上に積み重なる！
-  const h = 0.52 + idx * 0.09;
-  towerItem.position.set(gameState.playerX, h, 0.20);
+  const h = 0.40 + idx * 0.07;
+  towerItem.position.set(gameState.playerX, h, 0.15);
   scene.add(towerItem);
 
   gameState.towerBreads.push(towerItem);
@@ -567,38 +735,45 @@ function animate() {
 
   if (mixer) mixer.update(delta);
 
-  if (gameState.isRunning) {
-    // 制限時間カウントダウン
-    gameState.timeLeft -= delta;
-    if (gameState.timeLeft <= 0) {
-      gameState.timeLeft = 0;
-      endGame();
-    }
-    updateTimerUI();
-
-    // フィーバー管理
-    if (gameState.isFever) {
-      gameState.feverTimer -= delta;
-      if (gameState.feverTimer <= 0) {
-        gameState.isFever = false;
+  // ゲーム中、または終了時の中央歩行シークエンス中
+  if (gameState.isRunning || gameState.isEnding) {
+    if (gameState.isRunning) {
+      // 制限時間カウントダウン
+      gameState.timeLeft -= delta;
+      if (gameState.timeLeft <= 0) {
+        gameState.timeLeft = 0;
+        endGame();
       }
-    }
+      updateTimerUI();
 
-    // キーボード入力
-    handleKeyboardInput(delta);
+      // フィーバー管理
+      if (gameState.isFever) {
+        gameState.feverTimer -= delta;
+        if (gameState.feverTimer <= 0) {
+          gameState.isFever = false;
+        }
+      }
+
+      // キーボード入力
+      handleKeyboardInput(delta);
+    }
 
     // 純くんの移動（ターゲットXへスムーズに補間）
     const prevX = gameState.playerX;
     const diff = gameState.targetX - gameState.playerX;
-    gameState.playerX += diff * Math.min(1.0, GAME_CONFIG.moveSpeed * delta);
+    const moveSpd = gameState.isEnding ? 4.5 : GAME_CONFIG.moveSpeed;
+    gameState.playerX += diff * Math.min(1.0, moveSpd * delta);
     const limitX = getSafeMoveLimit();
     gameState.playerX = Math.max(-limitX, Math.min(limitX, gameState.playerX));
     const movedDist = Math.abs(gameState.playerX - prevX);
 
-    // 移動フラグ判定: キー操作中、ポインタ操作で差分がある、または実際に動いている
-    const isActivelyMoving = isKeyMoving || (isPointerDown && Math.abs(diff) > 0.04) || movedDist > 0.005;
+    // 移動フラグ判定
+    const isActivelyMoving = (gameState.isRunning && (isKeyMoving || (isPointerDown && Math.abs(diff) > 0.04))) ||
+                             (gameState.isEnding && Math.abs(diff) > 0.03) ||
+                             movedDist > 0.004;
+
     if (isActivelyMoving) {
-      runHoldTimer = 0.2; // 0.2秒間は走り状態を確実にキープ
+      runHoldTimer = 0.2;
     } else if (runHoldTimer > 0) {
       runHoldTimer -= delta;
     }
@@ -606,92 +781,111 @@ function animate() {
     if (junKunGroup) {
       junKunGroup.position.x = gameState.playerX;
 
-      // 移動中は確実にCarry_Run、停止時はCarry_Idle
-      if (runHoldTimer > 0) {
-        playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
-        const targetTilt = diff > 0.04 ? 0.15 : (diff < -0.04 ? -0.15 : 0);
-        junKunGroup.rotation.y += (targetTilt - junKunGroup.rotation.y) * 10 * delta;
-      } else {
-        playAnimation(animations['Carry_Idle'] ? 'Carry_Idle' : 'Idle', 0.2);
-        junKunGroup.rotation.y += (0 - junKunGroup.rotation.y) * 10 * delta;
-      }
-
-      // 木箱の中のパンを純くんの移動に追従＆可愛く揺らす
-      gameState.towerBreads.forEach((bread, idx) => {
-        bread.position.x = gameState.playerX;
-        bread.position.y = 0.52 + idx * 0.09;
-        bread.position.z = 0.20;
-        bread.rotation.z = Math.sin(clock.getElapsedTime() * 4 + idx) * 0.05;
-        bread.rotation.y = idx * 0.2;
-      });
-    }
-
-    // パンの生成
-    const interval = gameState.isFever ? 0.45 : 0.85;
-    spawnTimer += delta;
-    if (spawnTimer >= interval) {
-      spawnTimer = 0;
-      spawnBread();
-    }
-
-    // 落ちてくるパンの更新 & キャッチ判定
-    for (let i = activeBreads.length - 1; i >= 0; i--) {
-      const b = activeBreads[i];
-      b.mesh.position.y -= b.speed * delta;
-      b.mesh.rotation.x += b.rotSpeedX * delta;
-      b.mesh.rotation.y += b.rotSpeedY * delta;
-      // 少しゆらゆら左右に揺れる
-      b.mesh.position.x += Math.sin(clock.getElapsedTime() * 3 + b.wobblePhase) * 0.01;
-
-      // キャッチ判定（純くんの足元〜胸の高さ）
-      const dist = Math.abs(b.mesh.position.x - gameState.playerX);
-      if (b.mesh.position.y <= 1.5 && b.mesh.position.y >= 0.2 && dist < GAME_CONFIG.catchRadius) {
-        // キャッチ成功！
-        scene.remove(b.mesh);
-        activeBreads.splice(i, 1);
-
-        gameState.breadCount[b.type]++;
-        gameState.score += b.def.score;
-        updateScoreUI();
-
-        // 画面上のスクリーン座標にポップアップ
-        const screenPos = b.mesh.position.clone().project(camera);
-        const screenX = (screenPos.x * 0.5 + 0.5) * container.clientWidth;
-        const screenY = (-(screenPos.y * 0.5) + 0.5) * container.clientHeight;
-
-        if (b.type === 'bread_burnt') {
-          sounds.playBurnt();
-          showScorePopup(screenX - 30, screenY, "あちゃ〜! コゲ!", "#555");
-          gameState.combo = 0;
-        } else if (b.type === 'bread_gold') {
-          sounds.playGoldCatch();
-          showScorePopup(screenX - 40, screenY, `✨ +¥${b.def.score}`, "#E65100");
-          gameState.combo++;
-          addBreadToTower(b.type);
+      // 終了演出中で中央に到着した場合はお辞儀アニメーション
+      if (gameState.isEnding && Math.abs(diff) <= 0.03 && !gameState.isBowing) {
+        gameState.isBowing = true;
+        junKunGroup.rotation.y = 0;
+        if (animations['Bow']) {
+          playAnimation('Bow', 0.25, false);
         } else {
-          sounds.playCatch();
-          showScorePopup(screenX - 30, screenY, `+¥${b.def.score}`, "#D34600");
-          gameState.combo++;
-          addBreadToTower(b.type);
+          playAnimation('Carry_Idle', 0.2);
         }
-
-        // コンボ5回でフィーバー！
-        if (gameState.combo >= 5 && !gameState.isFever) {
-          gameState.isFever = true;
-          gameState.feverTimer = 8.0; // 8秒間フィーバー
-          sounds.playFever();
-          showScorePopup(container.clientWidth * 0.5 - 70, container.clientHeight * 0.35, "🔥 ほかほかフィーバー!!", "#FF3D00");
+      } else if (!gameState.isBowing) {
+        // 移動中はCarry_Run、停止時はCarry_Idle
+        if (runHoldTimer > 0) {
+          playAnimation(animations['Carry_Run'] ? 'Carry_Run' : 'Run', 0.12);
+          const targetTilt = diff > 0.04 ? 0.15 : (diff < -0.04 ? -0.15 : 0);
+          junKunGroup.rotation.y += (targetTilt - junKunGroup.rotation.y) * 10 * delta;
+        } else {
+          playAnimation(animations['Carry_Idle'] ? 'Carry_Idle' : 'Idle', 0.2);
+          junKunGroup.rotation.y += (0 - junKunGroup.rotation.y) * 10 * delta;
         }
-
-        continue;
       }
 
-      // 地面に落ちた
-      if (b.mesh.position.y < -0.5) {
-        scene.remove(b.mesh);
-        activeBreads.splice(i, 1);
-        if (b.type !== 'bread_burnt') {
-          gameState.combo = 0; // コンボリセット（怒られはしない）
+      // 木箱の中のパンを純くんの移動に追従＆可愛く揺らす（ゲーム中のみ）
+      if (gameState.isRunning) {
+        gameState.towerBreads.forEach((bread, idx) => {
+          bread.position.x = gameState.playerX;
+          bread.position.y = 0.40 + idx * 0.07;
+          bread.position.z = 0.15;
+          bread.rotation.z = Math.sin(clock.getElapsedTime() * 4 + idx) * 0.05;
+          bread.rotation.y = idx * 0.2;
+        });
+      }
+    }
+
+    // パンの生成 (ゲーム中のみ)
+    if (gameState.isRunning) {
+      const interval = gameState.isFever ? 0.45 : 0.85;
+      spawnTimer += delta;
+      if (spawnTimer >= interval) {
+        spawnTimer = 0;
+        spawnBread();
+      }
+
+      // 落ちてくるパンの更新 & キャッチ判定
+      for (let i = activeBreads.length - 1; i >= 0; i--) {
+        const b = activeBreads[i];
+        b.mesh.position.y -= b.speed * delta;
+        b.mesh.rotation.x += b.rotSpeedX * delta;
+        b.mesh.rotation.y += b.rotSpeedY * delta;
+        b.mesh.position.x += Math.sin(clock.getElapsedTime() * 3 + b.wobblePhase) * 0.01;
+
+        // キャッチ判定（縮小された純くんにピッタリの当たり判定）
+        const dist = Math.abs(b.mesh.position.x - gameState.playerX);
+        if (b.mesh.position.y <= 1.3 && b.mesh.position.y >= 0.15 && dist < GAME_CONFIG.catchRadius) {
+          scene.remove(b.mesh);
+          activeBreads.splice(i, 1);
+
+          gameState.breadCount[b.type]++;
+
+          // 画面上のスクリーン座標にポップアップ
+          const screenPos = b.mesh.position.clone().project(camera);
+          const screenX = (screenPos.x * 0.5 + 0.5) * container.clientWidth;
+          const screenY = (-(screenPos.y * 0.5) + 0.5) * container.clientHeight;
+
+          if (b.type === 'bread_burnt') {
+            // お邪魔コゲパン：-100点、コンボリセット、フィーバー終了
+            sounds.playBurnt();
+            gameState.score = Math.max(0, gameState.score - 100);
+            updateScoreUI();
+            showScorePopup(screenX - 45, screenY, "⚠️ コゲパン! -¥100", "#D50000");
+            gameState.combo = 0;
+            gameState.isFever = false;
+          } else if (b.type === 'bread_gold') {
+            sounds.playGoldCatch();
+            gameState.score += b.def.score;
+            updateScoreUI();
+            showScorePopup(screenX - 40, screenY, `✨ +¥${b.def.score}`, "#E65100");
+            gameState.combo++;
+            addBreadToTower(b.type);
+          } else {
+            sounds.playCatch();
+            gameState.score += b.def.score;
+            updateScoreUI();
+            showScorePopup(screenX - 30, screenY, `+¥${b.def.score}`, "#D34600");
+            gameState.combo++;
+            addBreadToTower(b.type);
+          }
+
+          // コンボ5回でフィーバー！
+          if (gameState.combo >= 5 && !gameState.isFever) {
+            gameState.isFever = true;
+            gameState.feverTimer = 8.0;
+            sounds.playFever();
+            showScorePopup(container.clientWidth * 0.5 - 70, container.clientHeight * 0.35, "🔥 ほかほかフィーバー!!", "#FF3D00");
+          }
+
+          continue;
+        }
+
+        // 地面に落ちた
+        if (b.mesh.position.y < -0.5) {
+          scene.remove(b.mesh);
+          activeBreads.splice(i, 1);
+          if (b.type !== 'bread_burnt') {
+            gameState.combo = 0;
+          }
         }
       }
     }
@@ -707,12 +901,38 @@ function startGame() {
   sounds.init();
   gameState.score = 0;
   gameState.timeLeft = GAME_CONFIG.duration;
-  gameState.isRunning = true;
+  gameState.isRunning = false;
+  gameState.isEnding = false;
+  gameState.isBowing = false;
   gameState.combo = 0;
   gameState.isFever = false;
-  gameState.breadCount = { bread_loaf: 0, bread_croissant: 0, bread_melon: 0, bread_gold: 0, bread_burnt: 0 };
+  gameState.breadCount = {
+    bread_loaf: 0,
+    bread_croissant: 0,
+    bread_melon: 0,
+    bread_cornet: 0,
+    bread_baguette: 0,
+    bread_anpan: 0,
+    bread_gold: 0,
+    bread_burnt: 0
+  };
   gameState.playerX = 0;
   gameState.targetX = 0;
+
+  if (junKunGroup) {
+    junKunGroup.position.x = 0;
+    junKunGroup.rotation.y = 0;
+  }
+
+  // 地面に置いた籠があれば片付ける
+  if (groundBasket) {
+    scene.remove(groundBasket);
+    groundBasket = null;
+  }
+  // 純くんの手元の木箱を再表示
+  if (junBreadBox) {
+    junBreadBox.visible = true;
+  }
 
   // 残っているパンをクリア
   activeBreads.forEach((b) => scene.remove(b.mesh));
@@ -729,7 +949,6 @@ function startGame() {
   resultScreen.classList.remove('active');
 
   // 開始演出: 純くんがカメラに元気に手を振る（Wave）！
-  gameState.isRunning = false;
   if (animations['Wave']) {
     playAnimation('Wave', 0.2, false);
   } else {
@@ -748,13 +967,29 @@ function startGame() {
 
 function endGame() {
   gameState.isRunning = false;
+  gameState.isEnding = true;
+  gameState.isBowing = false;
   sounds.playGameEnd();
 
   // 残りのタワーもボーナス換算
   if (gameState.towerBreads.length > 0) {
     gameState.score += gameState.towerBreads.length * 100;
     updateScoreUI();
+    gameState.towerBreads.forEach((m) => scene.remove(m));
+    gameState.towerBreads = [];
   }
+
+  // 籠（パン箱）を地面（足元）にコトンと置く演出！
+  if (junBreadBox) {
+    junBreadBox.visible = false;
+  }
+  if (!groundBasket) {
+    const geo = new THREE.BoxGeometry(0.24, 0.09, 0.16);
+    const mat = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.6 });
+    groundBasket = new THREE.Mesh(geo, mat);
+  }
+  groundBasket.position.set(gameState.playerX, 0.045, 0.15);
+  scene.add(groundBasket);
 
   finalScoreText.innerText = gameState.score.toLocaleString();
 
@@ -771,31 +1006,26 @@ function endGame() {
   }
   rankBadge.innerText = rank;
 
-  // パン内訳の表示
+  // パン内訳の表示（全8種対応）
   breadStats.innerHTML = `
     <div>🍞 食パン: ${gameState.breadCount.bread_loaf}個</div>
     <div>🥐 クロワッサン: ${gameState.breadCount.bread_croissant}個</div>
-    <div>🍈 メロン: ${gameState.breadCount.bread_melon}個</div>
+    <div>🍈 メロンパン: ${gameState.breadCount.bread_melon}個</div>
+    <div>🐚 コロネ: ${gameState.breadCount.bread_cornet}個</div>
+    <div>🥖 バゲット: ${gameState.breadCount.bread_baguette}個</div>
+    <div>🌸 あんぱん: ${gameState.breadCount.bread_anpan}個</div>
     <div>✨ 金パン: ${gameState.breadCount.bread_gold}個</div>
+    <div>⚠️ コゲパン: ${gameState.breadCount.bread_burnt}個</div>
   `;
 
-  // 終了演出: 純くんがショーケース窓口の前（左側 X = -1.25）へトコトコ移動！
-  gameState.targetX = -1.25;
+  // 終了演出: 純くん自身は中央（X = 0）に向かって軽快に歩いていく！
+  gameState.targetX = 0;
 
-  // 1.1秒後にショーケース窓口前でお辞儀（Bow）！
+  // 中央に到着してお辞儀（Bow）が終わった頃（2.8秒後）にリザルト画面を表示！
   setTimeout(() => {
-    if (animations['Bow']) {
-      playAnimation('Bow', 0.25, false);
-    } else {
-      playAnimation('Carry_Idle', 0.2);
-    }
-
-    // お辞儀後（2.0秒後）にリザルト画面とランキングを表示！
-    setTimeout(() => {
-      saveAndRenderRanking(gameState.score);
-      resultScreen.classList.add('active');
-    }, 2000);
-  }, 1100);
+    saveAndRenderRanking(gameState.score);
+    resultScreen.classList.add('active');
+  }, 2800);
 }
 
 // --- 8. 歴代プクムク純利益ランキングシステム ---

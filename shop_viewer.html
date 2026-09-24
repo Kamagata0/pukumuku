@@ -88,10 +88,73 @@
     const grid = new THREE.GridHelper(12, 24, 0xd4a373, 0xe9d2b8);
     scene.add(grid);
 
+    function createShopWallTexture() {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#FFE54C'; ctx.fillRect(0, 0, 512, 512);
+      ctx.strokeStyle = '#FAD02C'; ctx.lineWidth = 3;
+      for (let y = 0; y < 512; y += 32) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y); ctx.stroke(); }
+      ctx.fillStyle = '#1E90FF';
+      for (let y = 40; y < 512; y += 90) {
+        for (let x = (y % 180 === 40 ? 35 : 80); x < 512; x += 100) {
+          ctx.beginPath(); ctx.arc(x, y, 24, Math.PI, 0); ctx.lineTo(x + 14, y + 26); ctx.lineTo(x - 14, y + 26); ctx.closePath(); ctx.fill();
+        }
+      }
+      ctx.fillStyle = '#FF5722';
+      for (let y = 85; y < 512; y += 90) {
+        for (let x = (y % 180 === 85 ? 35 : 85); x < 512; x += 100) {
+          ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      const tex = new THREE.CanvasTexture(c); tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(2, 2); return tex;
+    }
+    function createWoodTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#8D4925'; ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#6E3414'; ctx.lineWidth = 4;
+      for (let y = 0; y < 256; y += 12) {
+        ctx.beginPath(); ctx.moveTo(0, y + (Math.sin(y * 0.2) * 4)); ctx.lineTo(256, y + (Math.cos(y * 0.2) * 4)); ctx.stroke();
+      }
+      return new THREE.CanvasTexture(c);
+    }
+    function createSignboardTexture() {
+      const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#E52417'; ctx.fillRect(0, 0, 512, 128);
+      ctx.strokeStyle = '#FFE082'; ctx.lineWidth = 8; ctx.strokeRect(8, 8, 496, 112);
+      ctx.fillStyle = '#8E140B'; ctx.font = '900 34px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🍞 PANKOUBOU PUKUMUKU 🥐', 258, 66);
+      ctx.fillStyle = '#FFFFFF'; ctx.fillText('🍞 PANKOUBOU PUKUMUKU 🥐', 256, 64);
+      return new THREE.CanvasTexture(c);
+    }
+
+    const wallTex = createShopWallTexture();
+    const woodTex = createWoodTexture();
+    const signTex = createSignboardTexture();
+
     const gltfLoader = new THREE.GLTFLoader();
-    gltfLoader.load('models/pukumuku_shop.glb?v=20260924_14', (gltf) => {
+    gltfLoader.load('models/pukumuku_shop.glb?v=20260924_15', (gltf) => {
       const shop = gltf.scene;
       shop.position.set(0, 0, 0);
+      shop.traverse((child) => {
+        if (child.isMesh) {
+          child.receiveShadow = true;
+          const n = child.name;
+          if (n.includes('Wall') || n.includes('Shop_Wall')) {
+            child.material = new THREE.MeshStandardMaterial({ map: wallTex, roughness: 0.65 });
+          } else if (n.includes('AwningText') || n.includes('Awning') || n.includes('plt')) {
+            child.material = new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.35 });
+          } else if (n.includes('ShowcaseFrame') || n.includes('DoorFrame') || n.includes('Shelf')) {
+            child.material = new THREE.MeshStandardMaterial({ map: woodTex, roughness: 0.5 });
+          } else if (n.includes('Bread')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0xD37318, roughness: 0.4 });
+          } else if (n.includes('SunFace') || n.includes('Moon')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0xFFCA28, roughness: 0.3 });
+          } else if (n.includes('SunFlame')) {
+            child.material = new THREE.MeshStandardMaterial({ color: 0xE53935, roughness: 0.4 });
+          }
+        }
+      });
       scene.add(shop);
     }, undefined, (err) => {
       console.error('Error loading shop GLB:', err);

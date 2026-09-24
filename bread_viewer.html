@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <title>パン工房プクムク 全パンモデル＆テクスチャ確認ビューワー</title>
+  <style>
+    body {
+      margin: 0;
+      background: #FFF3DE;
+      font-family: sans-serif;
+      overflow: hidden;
+    }
+
+    #ui-panel {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 16px 22px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      max-width: 380px;
+      z-index: 10;
+    }
+
+    h2 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      color: #793802;
+    }
+
+    p {
+      margin: 0 0 10px 0;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    .bread-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+
+    .bread-badge {
+      background: #FFF8EE;
+      border: 1px solid #E8C15A;
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+
+    .tip {
+      font-size: 12px;
+      color: #d87310;
+      font-weight: bold;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+
+<body>
+  <div id="ui-panel">
+    <h2>🥖 全8種類パン＆テクスチャ確認</h2>
+    <p>全パンの3D形状・テクスチャ焼き色・質感を360度確認できます！</p>
+    <div class="bread-list">
+      <div class="bread-badge">🍞 山型食パン (+100)</div>
+      <div class="bread-badge">🥐 クロワッサン (+200)</div>
+      <div class="bread-badge">🍈 メロンパン (+300)</div>
+      <div class="bread-badge">🐚 チョココロネ (+250)</div>
+      <div class="bread-badge">🥖 バゲット (+150)</div>
+      <div class="bread-badge">🌸 桜あんぱん (+180)</div>
+      <div class="bread-badge" style="background:#FFF9C4; border-color:#FBC02D;">✨ 金のプクムク (+1000)</div>
+      <div class="bread-badge" style="background:#FFEBEE; border-color:#E53935; color:#C62828;">⚠️ コゲパン (-100)</div>
+    </div>
+    <div class="tip">💡 マウスドラッグで360度回転・ホイールで拡大縮小できます！</div>
+  </div>
+
+  <div id="canvas-container" style="width:100vw; height:100vh;"></div>
+
+  <script>
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xFFF3DE);
+
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 3.5, 6.0);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffeedd, 0.95));
+    const dir = new THREE.DirectionalLight(0xffffff, 1.2);
+    dir.position.set(5, 10, 7);
+    scene.add(dir);
+
+    const grid = new THREE.GridHelper(10, 20, 0xd4a373, 0xe9d2b8);
+    scene.add(grid);
+
+    // テクスチャ生成
+    function createMelonBreadTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#EED279'; ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#936916'; ctx.lineWidth = 10;
+      for (let i = -256; i < 512; i += 40) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 256, 256); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(i, 256); ctx.lineTo(i + 256, 0); ctx.stroke();
+      }
+      return new THREE.CanvasTexture(c);
+    }
+    function createCroissantTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#D35D15'; ctx.fillRect(0, 0, 256, 256);
+      for (let y = 0; y < 256; y += 20) {
+        ctx.fillStyle = (y % 40 === 0) ? '#FFA23A' : '#7D2E04';
+        ctx.fillRect(0, y, 256, 10);
+      }
+      return new THREE.CanvasTexture(c);
+    }
+    function createLoafBreadTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#FFF8EE'; ctx.fillRect(0, 0, 256, 256);
+      ctx.lineWidth = 32; ctx.strokeStyle = '#823807';
+      ctx.strokeRect(16, 16, 224, 224);
+      ctx.fillStyle = '#6E2A03'; ctx.fillRect(0, 0, 256, 75);
+      return new THREE.CanvasTexture(c);
+    }
+    function createCornetTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#E59A44'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#AF6519';
+      for (let x = 0; x < 256; x += 36) ctx.fillRect(x, 0, 14, 256);
+      ctx.fillStyle = '#3E1D0C';
+      ctx.beginPath(); ctx.arc(128, 128, 60, 0, Math.PI * 2); ctx.fill();
+      return new THREE.CanvasTexture(c);
+    }
+    function createBaguetteTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#E29742'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#FFF3D6'; ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 6;
+      for (let y = 30; y < 256; y += 55) {
+        ctx.beginPath(); ctx.ellipse(128, y, 70, 16, Math.PI / 6, 0, Math.PI * 2);
+        ctx.fill(); ctx.stroke();
+      }
+      return new THREE.CanvasTexture(c);
+    }
+    function createAnpanTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#C86E20'; ctx.fillRect(0, 0, 256, 256);
+      ctx.fillStyle = '#222222';
+      for (let i = 0; i < 28; i++) {
+        const rx = 128 + (Math.random() - 0.5) * 44;
+        const ry = 128 + (Math.random() - 0.5) * 44;
+        ctx.fillRect(rx, ry, 5, 5);
+      }
+      return new THREE.CanvasTexture(c);
+    }
+    function createBurntTexture() {
+      const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#1A1412'; ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = '#4A1D13'; ctx.lineWidth = 4;
+      for (let i = 0; i < 8; i++) {
+        ctx.beginPath();
+        ctx.moveTo(Math.random() * 256, Math.random() * 256);
+        ctx.lineTo(Math.random() * 256, Math.random() * 256);
+        ctx.stroke();
+      }
+      return new THREE.CanvasTexture(c);
+    }
+
+    const texs = {
+      bread_melon: createMelonBreadTexture(),
+      bread_croissant: createCroissantTexture(),
+      bread_loaf: createLoafBreadTexture(),
+      bread_cornet: createCornetTexture(),
+      bread_baguette: createBaguetteTexture(),
+      bread_anpan: createAnpanTexture(),
+      bread_burnt: createBurntTexture()
+    };
+
+    const breads = [
+      { key: 'bread_loaf', pos: [-2.1, 0, -1.0] },
+      { key: 'bread_croissant', pos: [-0.7, 0, -1.0] },
+      { key: 'bread_melon', pos: [0.7, 0, -1.0] },
+      { key: 'bread_cornet', pos: [2.1, 0, -1.0] },
+      { key: 'bread_baguette', pos: [-2.1, 0, 1.0] },
+      { key: 'bread_anpan', pos: [-0.7, 0, 1.0] },
+      { key: 'bread_gold', pos: [0.7, 0, 1.0] },
+      { key: 'bread_burnt', pos: [2.1, 0, 1.0] }
+    ];
+
+    const loader = new THREE.GLTFLoader();
+    const loadedMeshes = [];
+
+    breads.forEach((b) => {
+      loader.load(`models/${b.key}.glb?v=20260924_15`, (gltf) => {
+        const m = gltf.scene;
+        m.position.set(b.pos[0], 0.35, b.pos[2]);
+        m.scale.set(0.65, 0.65, 0.65);
+        m.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            if (b.key === 'bread_gold') {
+              child.material = new THREE.MeshStandardMaterial({ color: 0xFFD700, metalness: 0.9, roughness: 0.15 });
+            } else if (texs[b.key]) {
+              child.material = new THREE.MeshStandardMaterial({ map: texs[b.key], roughness: 0.5 });
+            }
+          }
+        });
+        scene.add(m);
+        loadedMeshes.push(m);
+      });
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      loadedMeshes.forEach((m) => {
+        m.rotation.y += 0.01;
+      });
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+
+</html>
