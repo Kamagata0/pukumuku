@@ -282,21 +282,25 @@ const croissantTex = createCroissantTexture();
 const loafTex = createLoafBreadTexture();
 const signTex = createSignboardTexture();
 
-// 実店舗写真そのままの「パン工房プクムク」実写高精細ファサード背景！
-const texLoader = new THREE.TextureLoader();
-texLoader.load(`models/pukumuku_facade.png?${CACHE_BUST}`, (facadeTex) => {
-  facadeTex.colorSpace = THREE.SRGBColorSpace;
-  // 写真のアスペクト比 (921:534 ≒ 1.72:1) に忠実なファサードボード
-  const facadeGeo = new THREE.PlaneGeometry(5.2, 3.02);
-  const facadeMat = new THREE.MeshStandardMaterial({
-    map: facadeTex,
-    roughness: 0.85,
-    metalness: 0.02
+// 人の写っていないクリーンな「パン工房プクムク」3Dブロック建築モデル！
+loader.load(`models/pukumuku_shop.glb?${CACHE_BUST}`, (gltf) => {
+  const shop = gltf.scene;
+  shop.position.set(0, 0, -1.8);
+  shop.scale.set(0.75, 0.75, 0.75);
+  shop.rotation.set(0, 0, 0);
+  shop.traverse((child) => {
+    if (child.isMesh) {
+      child.receiveShadow = true;
+      if (child.name.includes('Awning') || child.name.includes('plt')) {
+        child.material = new THREE.MeshStandardMaterial({
+          map: signTex,
+          color: 0xFFFFFF,
+          roughness: 0.35
+        });
+      }
+    }
   });
-  const facadeMesh = new THREE.Mesh(facadeGeo, facadeMat);
-  facadeMesh.position.set(0, 1.51, -1.8);
-  facadeMesh.receiveShadow = true;
-  scene.add(facadeMesh);
+  scene.add(shop);
 });
 
 // 純くん（箱持ち＆上見上げ新モデル）の読み込み
@@ -724,7 +728,22 @@ function startGame() {
   startScreen.classList.remove('active');
   resultScreen.classList.remove('active');
 
-  playAnimation('Idle');
+  // 開始演出: 純くんがカメラに元気に手を振る（Wave）！
+  gameState.isRunning = false;
+  if (animations['Wave']) {
+    playAnimation('Wave', 0.2, false);
+  } else {
+    playAnimation('Carry_Idle', 0.2);
+  }
+
+  // 1.1秒後にパン焼き・キャッチ本番スタート！
+  setTimeout(() => {
+    gameState.isRunning = true;
+    sounds.playOvenDing();
+    if (animations['Carry_Idle']) {
+      playAnimation('Carry_Idle', 0.2);
+    }
+  }, 1100);
 }
 
 function endGame() {
@@ -760,18 +779,23 @@ function endGame() {
     <div>✨ 金パン: ${gameState.breadCount.bread_gold}個</div>
   `;
 
-  // 🏆 歴代ランキングの保存＆表示
-  saveAndRenderRanking(gameState.score);
+  // 終了演出: 純くんがショーケース窓口の前（左側 X = -1.25）へトコトコ移動！
+  gameState.targetX = -1.25;
 
-  // リザルト画面表示
-  resultScreen.classList.add('active');
-
-  // 純くんのアニメーション演出:
-  // まず「Hold_Bread_Up（パン掲げ）」で純利益発表、3秒後に「Bow（お辞儀）」でご来店ありがとうございました！
-  playAnimation('Hold_Bread_Up', 0.3, false);
+  // 1.1秒後にショーケース窓口前でお辞儀（Bow）！
   setTimeout(() => {
-    playAnimation('Bow', 0.3, false);
-  }, 3200);
+    if (animations['Bow']) {
+      playAnimation('Bow', 0.25, false);
+    } else {
+      playAnimation('Carry_Idle', 0.2);
+    }
+
+    // お辞儀後（2.0秒後）にリザルト画面とランキングを表示！
+    setTimeout(() => {
+      saveAndRenderRanking(gameState.score);
+      resultScreen.classList.add('active');
+    }, 2000);
+  }, 1100);
 }
 
 // --- 8. 歴代プクムク純利益ランキングシステム ---
